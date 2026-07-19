@@ -1,102 +1,95 @@
-# User Management Platform — Vulnerability Analysis & Security Hardening Report
+# 用户管理平台 — 漏洞分析与安全加固报告
 
-> **Course:** Web Application Security — Vulnerability Discovery & Remediation  
-> **Version:** Original (vulnerable) → Hardened (secure)  
-> **Objective:** Identify, exploit, and fix common Web security vulnerabilities through
-> side-by-side comparison of code patterns.
-
----
-
-## Table of Contents
-
-1. [Vulnerability Overview](#1-vulnerability-overview)
-2. [V-01: Plaintext Password Storage](#2-v-01-plaintext-password-storage)
-3. [V-02: Plaintext Password Transmission](#3-v-02-plaintext-password-transmission)
-4. [V-03: Unrestricted Brute-Force Attack](#4-v-03-unrestricted-brute-force-attack)
-5. [V-04: Weak Session Secret Key](#5-v-04-weak-session-secret-key)
-6. [V-05: Debug Mode Information Leakage](#6-v-05-debug-mode-information-leakage)
-7. [V-06: Password Leakage in Client-Side Rendering](#7-v-06-password-leakage-in-client-side-rendering)
-8. [V-07: Hardcoded Credentials in HTML Comments](#8-v-07-hardcoded-credentials-in-html-comments)
-9. [V-08: Session Security Misconfiguration](#9-v-08-session-security-misconfiguration)
-10. [V-09: Missing Security Response Headers](#10-v-09-missing-security-response-headers)
-11. [V-10: Cross-Site Request Forgery (CSRF)](#11-v-10-cross-site-request-forgery-csrf)
-12. [V-11: User Enumeration via Error Messages](#12-v-11-user-enumeration-via-error-messages)
-13. [V-12: Missing Input Validation](#13-v-12-missing-input-validation)
-14. [V-13: Timing Side-Channel Attack](#13-v-13-timing-side-channel-attack)
-15. [Security Development Checklist](#15-security-development-checklist)
-16. [Recommended Tools & Resources](#16-recommended-tools--resources)
+> **课程名称：** Web 应用安全 — 漏洞发现与修复  
+> **版本对比：** 原始漏洞版 → 安全加固版  
+> **报告目标：** 通过代码对比，识别并修复常见的 Web 安全漏洞
 
 ---
 
-## 1. Vulnerability Overview
+## 目录
 
-| # | Vulnerability | CVSS Severity | CWE Reference | Root Cause | Fix Applied |
-|---|--------------|:-------------:|:-------------:|------------|-------------|
-| 01 | Plaintext Password Storage | **🔴 Critical** | [CWE-312](https://cwe.mitre.org/data/definitions/312.html) | Stored passwords as raw strings in source | `werkzeug.security` pbkdf2:sha256 hashing |
-| 02 | Plaintext Password Transmission | **🔴 Critical** | [CWE-319](https://cwe.mitre.org/data/definitions/319.html) | HTTP without TLS encryption | HSTS header + HTTPS requirement |
-| 03 | Unrestricted Brute-Force Attack | **🔴 Critical** | [CWE-307](https://cwe.mitre.org/data/definitions/307.html) | No rate limiting on `/login` | Flask-Limiter (5 req/min/IP) |
-| 04 | Weak Session Secret Key | **🟡 High** | [CWE-330](https://cwe.mitre.org/data/definitions/330.html) | Hardcoded `"dev-key-2025"` | `secrets.token_hex(32)` (256-bit) |
-| 05 | Debug Mode Leakage | **🟡 High** | [CWE-489](https://cwe.mitre.org/data/definitions/489.html) | `debug=True` always on | Environment-gated activation |
-| 06 | Client-Side Password Leakage | **🔴 Critical** | [CWE-200](https://cwe.mitre.org/data/definitions/200.html) | `password` field in template context | Stripped via `_sanitize_user()` |
-| 07 | Hardcoded Credentials in HTML | **🔴 Critical** | [CWE-798](https://cwe.mitre.org/data/definitions/798.html) | `<!-- admin / admin123 -->` in login.html | Comment removed |
-| 08 | Session Cookie Misconfig. | **🟡 High** | [CWE-1004](https://cwe.mitre.org/data/definitions/1004.html) | No HttpOnly / SameSite / expiry | Session config hardened |
-| 09 | Missing Security Headers | **🟡 High** | [CWE-693](https://cwe.mitre.org/data/definitions/693.html) | No response headers set | 5 headers injected via middleware |
-| 10 | CSRF Vulnerability | **🟡 High** | [CWE-352](https://cwe.mitre.org/data/definitions/352.html) | No anti-CSRF token | Flask-WTF `csrf_token()` |
-| 11 | User Enumeration | **🟡 High** | [CWE-204](https://cwe.mitre.org/data/definitions/204.html) | Distinct error messages | Unified "invalid credentials" |
-| 12 | Missing Input Validation | **🟢 Medium** | [CWE-20](https://cwe.mitre.org/data/definitions/20.html) | Unbounded input fields | maxlength + 16 KB body limit |
-| 13 | Timing Side-Channel | **🟢 Medium** | [CWE-208](https://cwe.mitre.org/data/definitions/208.html) | `==` string comparison | `check_password_hash()` (constant-time) |
+1. [漏洞总览](#1-漏洞总览)
+2. [V-01：明文密码存储](#2-v-01明文密码存储)
+3. [V-02：明文密码传输](#3-v-02明文密码传输)
+4. [V-03：暴力破解无限制](#4-v-03暴力破解无限制)
+5. [V-04：弱会话密钥](#5-v-04弱会话密钥)
+6. [V-05：调试模式信息泄露](#6-v-05调试模式信息泄露)
+7. [V-06：前端页面泄露密码](#7-v-06前端页面泄露密码)
+8. [V-07：HTML 注释泄露凭据](#8-v-07html-注释泄露凭据)
+9. [V-08：会话安全配置缺失](#9-v-08会话安全配置缺失)
+10. [V-09：安全响应头缺失](#10-v-09安全响应头缺失)
+11. [V-10：跨站请求伪造](#11-v-10跨站请求伪造)
+12. [V-11：登录错误枚举用户](#12-v-11登录错误枚举用户)
+13. [V-12：输入校验缺失](#13-v-12输入校验缺失)
+14. [V-13：时序侧信道攻击](#13-v-13时序侧信道攻击)
+15. [安全开发检查清单](#15-安全开发检查清单)
+16. [推荐工具与资源](#16-推荐工具与资源)
 
 ---
 
-## 2. V-01: Plaintext Password Storage
+## 1. 漏洞总览
 
-**CWE:** [CWE-312 — Cleartext Storage of Sensitive Information](https://cwe.mitre.org/data/definitions/312.html)  
-**CVSS 3.1:** 9.1 (Critical) — `AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N`  
-**OWASP Top 10:** A02:2021 — Cryptographic Failures
+| # | 漏洞名称 | 严重程度 | CWE 编号 | 根因 | 修复方案 |
+|---|---------|:--------:|:--------:|------|---------|
+| 01 | 明文密码存储 | 🔴 严重 | [CWE-312](https://cwe.mitre.org/data/definitions/312.html) | 密码以原始字符串存储在源码中 | `werkzeug.security` pbkdf2:sha256 哈希 |
+| 02 | 明文密码传输 | 🔴 严重 | [CWE-319](https://cwe.mitre.org/data/definitions/319.html) | 无 TLS 加密的 HTTP 传输 | HSTS 响应头 + 强制 HTTPS |
+| 03 | 暴力破解无限制 | 🔴 严重 | [CWE-307](https://cwe.mitre.org/data/definitions/307.html) | `/login` 接口无频率限制 | Flask-Limiter（每 IP 每分钟 5 次） |
+| 04 | 弱会话密钥 | 🟡 高危 | [CWE-330](https://cwe.mitre.org/data/definitions/330.html) | 硬编码 `"dev-key-2025"` | `secrets.token_hex(32)`（256 位） |
+| 05 | 调试模式泄露 | 🟡 高危 | [CWE-489](https://cwe.mitre.org/data/definitions/489.html) | `debug=True` 始终开启 | 环境变量控制开关 |
+| 06 | 前端展示密码 | 🔴 严重 | [CWE-200](https://cwe.mitre.org/data/definitions/200.html) | `password` 字段传递到模板 | 通过 `_sanitize_user()` 剥离敏感字段 |
+| 07 | 注释泄露凭据 | 🔴 严重 | [CWE-798](https://cwe.mitre.org/data/definitions/798.html) | HTML 注释包含 `admin / admin123` | 移除注释行 |
+| 08 | 会话配置缺失 | 🟡 高危 | [CWE-1004](https://cwe.mitre.org/data/definitions/1004.html) | 无 HttpOnly / SameSite / 过期时间 | 加固会话配置 |
+| 09 | 安全头缺失 | 🟡 高危 | [CWE-693](https://cwe.mitre.org/data/definitions/693.html) | 未设置任何安全响应头 | 中间件注入 5 项安全头 |
+| 10 | CSRF 漏洞 | 🟡 高危 | [CWE-352](https://cwe.mitre.org/data/definitions/352.html) | 无防跨站请求伪造令牌 | Flask-WTF `csrf_token()` |
+| 11 | 用户枚举 | 🟡 高危 | [CWE-204](https://cwe.mitre.org/data/definitions/204.html) | 错误信息可区分用户是否存在 | 统一返回"用户名或密码错误" |
+| 12 | 输入校验缺失 | 🟢 中危 | [CWE-20](https://cwe.mitre.org/data/definitions/20.html) | 输入框无长度限制 | maxlength + 16 KB 请求体限制 |
+| 13 | 时序攻击 | 🟢 中危 | [CWE-208](https://cwe.mitre.org/data/definitions/208.html) | 使用 `==` 逐字符比较字符串 | `check_password_hash()` 常量时间比较 |
 
-### Description
+---
 
-User passwords were stored as **plaintext strings** directly in the application
-source code. Any party with read access to the codebase (via source code leak,
-Git repository exposure, server file read, or insider threat) could instantly
-obtain every user's password in cleartext.
+## 2. V-01：明文密码存储
 
-### Attack Scenario
+**CWE：** [CWE-312 — 敏感信息明文存储](https://cwe.mitre.org/data/definitions/312.html)  
+**CVSS 3.1：** 9.1（严重）— `AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N`  
+**OWASP Top 10：** A02:2021 — 密码学失败
 
-1. Attacker gains read access to `app.py` through any means (misconfigured
-   `.git` directory exposed via web, server-side file disclosure vulnerability,
-   compromised CI/CD pipeline, or physical access to a developer workstation).
-2. Opens the file and immediately reads:
+### 漏洞描述
+
+用户密码以**明文**形式直接存储在 `USERS` 字典中。任何获得代码读取权限的人（通过源码泄露、Git 仓库暴露、服务器文件读取等）都能立即获取所有用户的密码。
+
+### 攻击场景
+
+1. 攻击者通过任意手段（配置不当的 `.git` 目录暴露、文件包含漏洞、CI/CD 泄露等）读取 `app.py`
+2. 直接看到所有用户的明文密码：
    ```python
    USERS = {
        "admin": {"password": "admin123", ...},
        "alice": {"password": "alice2025", ...},
    }
    ```
-3. Uses these credentials to log in as any user — or attempts **credential
-   stuffing** on other services where the same passwords may be reused.
+3. 使用获取的凭据登录系统，或在其他平台进行撞库攻击
 
-### ❌ Vulnerable Code
+### ❌ 漏洞代码
 
 ```python
-# app.py (original)
+# app.py（原始版本）
 USERS = {
     "admin": {
         "username": "admin",
-        "password": "admin123",  # <-- PLAINTEXT
+        "password": "admin123",  # <-- 明文
     },
     "alice": {
         "username": "alice",
-        "password": "alice2025",  # <-- PLAINTEXT
+        "password": "alice2025",  # <-- 明文
     },
 }
 
-# Password verification using direct string equality
+# 使用直接字符串相等性验证密码
 if USERS[username]["password"] == password:
     session["username"] = username
 ```
 
-### ✅ Fix
+### ✅ 修复方案
 
 ```python
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -104,55 +97,47 @@ from werkzeug.security import generate_password_hash, check_password_hash
 USERS = {
     "admin": {
         "username": "admin",
-        "password_hash": generate_password_hash("admin123"),  # hashed
+        "password_hash": generate_password_hash("admin123"),  # 已哈希
     },
     "alice": {
         "username": "alice",
-        "password_hash": generate_password_hash("alice2025"),  # hashed
+        "password_hash": generate_password_hash("alice2025"),  # 已哈希
     },
 }
 
-# Verification uses constant-time comparison against the hash
+# 使用常量时间比较验证哈希
 if user and check_password_hash(user["password_hash"], password):
     session["username"] = username
 ```
 
-### How It Works
+### 原理说明
 
-`generate_password_hash()` uses the **pbkdf2:sha256** algorithm with a random
-salt by default (600,000 iterations in Werkzeug 3.x). The output format is:
+`generate_password_hash()` 默认使用 **pbkdf2:sha256** 算法，每次调用生成随机盐值（Werkzeug 3.x 迭代 600,000 次）。输出格式为：
 
 ```
-pbkdf2:sha256:600000$<salt>$<hash>
+pbkdf2:sha256:600000$<盐值>$<哈希>
 ```
 
-- **Salt** is randomly generated for every call — identical passwords produce
-  completely different hashes.
-- **Hash** is derived through an intentionally slow, one-way function.
-- `check_password_hash()` extracts the salt from the stored hash, re-computes
-  it with the candidate password, and compares using **`hmac.compare_digest`**
-  (constant-time, preventing timing side-channels).
+- **盐值**：每次调用随机生成，相同密码产生完全不同的哈希值
+- **哈希**：通过刻意缓慢的单向函数推导得出
+- **验证**：`check_password_hash()` 从存储的哈希中提取盐值，重新计算后通过 **`hmac.compare_digest`** 进行常量时间比较
 
 ---
 
-## 3. V-02: Plaintext Password Transmission
+## 3. V-02：明文密码传输
 
-**CWE:** [CWE-319 — Cleartext Transmission of Sensitive Information](https://cwe.mitre.org/data/definitions/319.html)  
-**CVSS 3.1:** 7.5 (High) — `AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N`  
-**OWASP Top 10:** A02:2021 — Cryptographic Failures
+**CWE：** [CWE-319 — 敏感信息明文传输](https://cwe.mitre.org/data/definitions/319.html)  
+**CVSS 3.1：** 7.5（高危）— `AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N`  
+**OWASP Top 10：** A02:2021 — 密码学失败
 
-### Description
+### 漏洞描述
 
-The login form submits credentials over **plain HTTP** without TLS encryption.
-An attacker positioned on the same network (Wi-Fi, same LAN, or with access to
-an upstream router) can capture the full HTTP request body and recover the
-password.
+登录表单通过**明文 HTTP** 提交，密码在网络中未经加密传输。位于同一网络的攻击者（Wi-Fi、同一 LAN 或上游路由器）可以捕获 HTTP 请求体，直接获取密码。
 
-### Attack Scenario
+### 攻击场景
 
-1. Attacker sets up packet capture (e.g., Wireshark, tcpdump, or ARP-spoofs
-   the local network).
-2. Victim submits the login form → packet capture reveals:
+1. 攻击者在同一网络设置抓包（Wireshark、tcpdump 或 ARP 欺骗）
+2. 受害者提交登录表单 → 抓包结果：
    ```
    POST /login HTTP/1.1
    Host: 192.168.145.130:5000
@@ -160,14 +145,13 @@ password.
 
    username=admin&password=admin123
    ```
-3. Attacker now has valid credentials — no decryption needed.
+3. 攻击者直接获得有效凭据，无需解密
 
-### ❌ Vulnerable Code
+### ❌ 漏洞代码
 
-No HTTPS configuration is present. The application binds to `0.0.0.0:5000` and
-serves all traffic over raw HTTP.
+应用未配置 HTTPS，所有流量通过裸 HTTP 传输。
 
-### ✅ Fix
+### ✅ 修复方案
 
 ```python
 @app.after_request
@@ -178,55 +162,53 @@ def add_security_headers(response):
     return response
 ```
 
-**Additional production recommendations:**
+**生产环境建议：**
 
-- Deploy behind a reverse proxy (Nginx, Caddy) terminating TLS.
-- Use [Let's Encrypt](https://letsencrypt.org/) for free automated certificates.
-- Set `SESSION_COOKIE_SECURE = True` so cookies are never sent over HTTP.
+- 部署反向代理（Nginx、Caddy）终止 TLS
+- 使用 [Let's Encrypt](https://letsencrypt.org/) 获取免费证书
+- 设置 `SESSION_COOKIE_SECURE = True`，确保 Cookie 不通过 HTTP 发送
 
 ---
 
-## 4. V-03: Unrestricted Brute-Force Attack
+## 4. V-03：暴力破解无限制
 
-**CWE:** [CWE-307 — Improper Restriction of Excessive Authentication Attempts](https://cwe.mitre.org/data/definitions/307.html)  
-**CVSS 3.1:** 7.3 (High) — `AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:L`  
-**OWASP Top 10:** A07:2021 — Identification and Authentication Failures
+**CWE：** [CWE-307 — 认证尝试次数限制不当](https://cwe.mitre.org/data/definitions/307.html)  
+**CVSS 3.1：** 7.3（高危）— `AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:L`  
+**OWASP Top 10：** A07:2021 — 身份认证与授权失败
 
-### Description
+### 漏洞描述
 
-The `/login` endpoint imposes **no request rate limit**. An attacker can use
-automated tools (Burp Suite Intruder, Hydra, Medusa, or a simple shell script)
-to try thousands of passwords per minute until one succeeds.
+`/login` 接口**无任何请求频率限制**。攻击者可利用自动化工具（Burp Suite Intruder、Hydra、Medusa 或简单脚本）每分钟尝试数千个密码。
 
-### Attack Scenario
+### 攻击场景
 
-1. Attacker intercepts a login POST request in Burp Suite.
-2. Sends to **Intruder** with a common password wordlist (e.g., `rockyou.txt`).
-3. Sets the payload position: `password=§§`.
-4. Launches the attack — fires requests as fast as the network allows.
-5. Compares response lengths/content to identify the correct password.
+1. 攻击者在 Burp Suite 中截获登录 POST 请求
+2. 发送到 **Intruder**，加载常见密码字典（如 `rockyou.txt`）
+3. 设置 Payload 位置：`password=§§`
+4. 发起攻击——以网络允许的最快速度发送请求
+5. 对比响应长度/内容，识别正确密码
 
-**Illustrative Burp Suite configuration:**
+**Burp Suite 配置示例：**
 
 ```
 Target:  POST http://192.168.145.130:5000/login
-Payload: rockyou.txt  (14 million passwords, ~50 MB)
+Payload: rockyou.txt（约 1400 万条密码，~50 MB）
 Position: username=admin&password=§payload§
 ```
 
-### ❌ Vulnerable Code
+### ❌ 漏洞代码
 
 ```python
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    # No rate limiting — thousands of attempts per minute
+    # 无速率限制 —— 每分钟可尝试数千次
     if request.method == "POST":
         username = request.form.get("username")
         password = request.form.get("password")
         # ...
 ```
 
-### ✅ Fix
+### ✅ 修复方案
 
 ```python
 from flask_limiter import Limiter
@@ -237,150 +219,131 @@ limiter = Limiter(app=app, key_func=get_remote_address)
 @app.route("/login", methods=["GET", "POST"])
 @limiter.limit("5 per minute", override_defaults=False)
 def login():
-    # Exceeding 5 requests per minute from the same IP returns HTTP 429
+    # 同一 IP 每分钟超过 5 次请求返回 HTTP 429
 ```
 
-### How It Works
+### 原理说明
 
-`Flask-Limiter` tracks request counts per **client IP address** (via
-`get_remote_address`). Once the limit is reached, subsequent requests receive
-a **429 Too Many Requests** response before the view function is ever called.
-The `override_defaults=False` parameter ensures the global default limits
-(Azure: 200/day, 50/hour) are also respected.
+`Flask-Limiter` 基于**客户端 IP 地址**（通过 `get_remote_address`）跟踪请求计数。达到限制后，后续请求在进入视图函数前直接返回 **429 Too Many Requests**。
 
 ---
 
-## 5. V-04: Weak Session Secret Key
+## 5. V-04：弱会话密钥
 
-**CWE:** [CWE-330 — Use of Insufficiently Random Values](https://cwe.mitre.org/data/definitions/330.html)  
-**CVSS 3.1:** 7.5 (High) — `AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N`  
-**OWASP Top 10:** A02:2021 — Cryptographic Failures
+**CWE：** [CWE-330 — 使用不充分的随机值](https://cwe.mitre.org/data/definitions/330.html)  
+**CVSS 3.1：** 7.5（高危）— `AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N`  
+**OWASP Top 10：** A02:2021 — 密码学失败
 
-### Description
+### 漏洞描述
 
-The Flask application's `secret_key` was hardcoded as `"dev-key-2025"`.
-Flask uses this key to **cryptographically sign session cookies** via
-`itsdangerous`. A guessable key lets an attacker forge arbitrary session data
-and impersonate any user.
+Flask 应用的 `secret_key` 被硬编码为 `"dev-key-2025"`。Flask 使用该密钥通过 `itsdangerous` 对会话 Cookie 进行**加密签名**。可猜测的密钥使攻击者能够伪造任意会话数据，冒充任何用户。
 
-### Attack Scenario
+### 攻击场景
 
-1. Attacker obtains the source code (or guesses the weak key).
-2. Crafts a forged Flask session cookie:
+1. 攻击者获取源代码（或猜出弱密钥）
+2. 构造伪造的 Flask 会话 Cookie：
    ```python
    from itsdangerous import URLSafeTimedSerializer
    s = URLSafeTimedSerializer("dev-key-2025", salt="cookie-session")
    forged = s.dumps({"username": "admin"})
    ```
-3. Sets this cookie in their browser → application trusts `session["username"]`
-   and displays the admin profile.
+3. 在浏览器中设置此 Cookie → 应用信任 `session["username"]`，显示管理员页面
 
-### ❌ Vulnerable Code
+### ❌ 漏洞代码
 
 ```python
 app.secret_key = "dev-key-2025"
 ```
 
-### ✅ Fix
+### ✅ 修复方案
 
 ```python
 import secrets
 
-# Prefer environment variable; generate a strong fallback
+# 优先使用环境变量，否则生成强随机备用密钥
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 ```
 
-`secrets.token_hex(32)` produces a **256-bit** cryptographically random string
-— practically impossible to guess or brute-force.
+`secrets.token_hex(32)` 产生 **256 位**密码学安全随机字符串，几乎不可猜测或暴力破解。
 
 ---
 
-## 6. V-05: Debug Mode Information Leakage
+## 6. V-05：调试模式信息泄露
 
-**CWE:** [CWE-489 — Active Debug Code](https://cwe.mitre.org/data/definitions/489.html)  
-**CVSS 3.1:** 6.2 (Medium) — `AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N`  
-**OWASP Top 10:** A05:2021 — Security Misconfiguration
+**CWE：** [CWE-489 — 调试代码处于活动状态](https://cwe.mitre.org/data/definitions/489.html)  
+**CVSS 3.1：** 6.2（中危）— `AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N`  
+**OWASP Top 10：** A05:2021 — 安全配置错误
 
-### Description
+### 漏洞描述
 
-Flask's built-in Werkzeug debugger (activated by `debug=True`) provides an
-**interactive console** that executes arbitrary Python code on the server when
-an exception occurs. The debugger also displays the full stack trace with
-local variable values, source code snippets, and environment details.
+Flask 的 Werkzeug 调试器（由 `debug=True` 激活）在发生异常时提供**交互式控制台**，可执行任意 Python 代码。调试器还显示完整调用栈、局部变量值、源码片段及环境信息。
 
-### Attack Scenario
+### 攻击场景
 
-1. Attacker triggers an exception (e.g., visiting a crafted URL that causes
-   a server-side error).
-2. The debugger page is shown with an interactive Python shell.
-3. Attacker uses the shell to execute:
+1. 攻击者触发异常（例如访问精心构造的 URL 导致服务端错误）
+2. 调试器页面显示交互式 Python Shell
+3. 攻击者在 Shell 中执行：
    ```python
-   import os; os.environ  # Read environment variables including SECRET_KEY
-   open("app.py").read()  # Read source code
+   import os; os.environ  # 读取环境变量，包括 SECRET_KEY
+   open("app.py").read()  # 读取源码
    ```
-4. Gains access to all secrets and the full codebase.
+4. 获取所有密钥和完整代码库
 
-### ❌ Vulnerable Code
+### ❌ 漏洞代码
 
 ```python
 app.run(debug=True, host="0.0.0.0", port=5000)
 ```
 
-### ✅ Fix
+### ✅ 修复方案
 
 ```python
-# Production: debug=False  (default)
-# Development: FLASK_ENV=development python app.py
+# 生产环境：debug=False（默认）
+# 开发环境：FLASK_ENV=development python app.py
 debug_mode = os.environ.get("FLASK_ENV") == "development"
 app.run(debug=debug_mode, host="0.0.0.0", port=8080)
 ```
 
-**Note:** Werkzeug's debugger **PIN** (`Debugger PIN: xxx-xxx-xxx`) provides
-some protection, but the PIN can be reliably computed if an attacker has file
-read access — PIN-based security should never be relied upon in production.
+**注意：** Werkzeug 调试器的 **PIN 码**（`Debugger PIN: xxx-xxx-xxx`）提供一定保护，但如果攻击者拥有文件读取权限，PIN 可以被可靠计算——生产中绝不能依赖 PIN 安全性。
 
 ---
 
-## 7. V-06: Password Leakage in Client-Side Rendering
+## 7. V-06：前端页面泄露密码
 
-**CWE:** [CWE-200 — Exposure of Sensitive Information to an Unauthorized Actor](https://cwe.mitre.org/data/definitions/200.html)  
-**CVSS 3.1:** 7.5 (High) — `AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N`  
-**OWASP Top 10:** A04:2021 — Insecure Design
+**CWE：** [CWE-200 — 敏感信息泄露](https://cwe.mitre.org/data/definitions/200.html)  
+**CVSS 3.1：** 7.5（高危）— `AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N`  
+**OWASP Top 10：** A04:2021 — 不安全设计
 
-### Description
+### 漏洞描述
 
-After successful login, the server passed the **entire user dictionary** —
-including the `password` field — to the template engine. The template then
-rendered the password as visible text on the page. Anyone who viewed the page
-source or looked at the screen could read the user's password.
+登录成功后，服务端将**完整的用户字典**（包括 `password` 字段）传递给模板引擎。模板将密码渲染为页面上的可见文字。任何查看页面源码或看到屏幕的人都能读取用户的密码。
 
-### Attack Scenario
+### 攻击场景
 
-1. User logs in as `admin`.
-2. The index page renders all user fields, including:
+1. 用户以 `admin` 身份登录
+2. 首页渲染所有用户字段，包括：
    ```html
    <li><span class="info-label">密码：</span>admin123</li>
    ```
-3. A passerby glances at the screen, or a co-worker views the source during
-   a screen-share session — the password is leaked.
+3. 路过者看到屏幕，或同事在屏幕共享时查看源码 —— 密码泄露
 
-### ❌ Vulnerable Code
+### ❌ 漏洞代码
 
 ```python
-# app.py — passes the full user dict (including password) to template
+# app.py —— 将完整用户字典（含密码）传递给模板
 user_info = USERS[username]
 return render_template("index.html", user=user_info)
 ```
 
 ```html
-<!-- index.html — renders every field including password -->
+<!-- index.html —— 渲染包括密码在内的所有字段 -->
 <li><span class="info-label">密码：</span>{{ user.password }}</li>
 ```
 
-### ✅ Fix
+### ✅ 修复方案
 
 ```python
-# Define public fields — password is deliberately excluded
+# 定义公开字段 —— password 被刻意排除
 PUBLIC_FIELDS = frozenset({"username", "role", "email", "phone", "balance"})
 
 def _sanitize_user(user):
@@ -390,7 +353,7 @@ def _sanitize_user(user):
 ```
 
 ```html
-<!-- index.html — password field is absent from the template -->
+<!-- index.html —— 密码字段已从模板中移除 -->
 <li><span class="info-label">用户名：</span>{{ user.username }}</li>
 <li><span class="info-label">邮箱：</span>{{ user.email }}</li>
 <li><span class="info-label">手机：</span>{{ user.phone }}</li>
@@ -398,91 +361,82 @@ def _sanitize_user(user):
 
 ---
 
-## 8. V-07: Hardcoded Credentials in HTML Comments
+## 8. V-07：HTML 注释泄露凭据
 
-**CWE:** [CWE-798 — Use of Hard-coded Credentials](https://cwe.mitre.org/data/definitions/798.html)  
-**CVSS 3.1:** 8.6 (High) — `AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:L`  
-**OWASP Top 10:** A07:2021 — Identification and Authentication Failures
+**CWE：** [CWE-798 — 使用硬编码凭据](https://cwe.mitre.org/data/definitions/798.html)  
+**CVSS 3.1：** 8.6（高危）— `AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:L`  
+**OWASP Top 10：** A07:2021 — 身份认证与授权失败
 
-### Description
+### 漏洞描述
 
-The login page's HTML contained a comment that **explicitly revealed the admin
-username and password** to anyone who viewed the page source. This is
-equivalent to taping the administrator's password to the login screen.
+登录页面的 HTML 中包含一条注释，**明确写出了管理员用户名和密码**，任何查看页面源代码的人都能看到。
 
-### Attack Scenario
+### 攻击场景
 
-1. Attacker navigates to the login page.
-2. Opens browser Developer Tools or uses **View Page Source**.
-3. Finds: `<!-- 调试信息 - 默认管理员账号 用户名: admin 密码: admin123 -->`
-4. Immediately logs in as `admin`.
+1. 攻击者访问登录页面
+2. 打开浏览器开发者工具或查看页面源代码
+3. 发现：`<!-- 调试信息 - 默认管理员账号 用户名: admin 密码: admin123 -->`
+4. 立即以 `admin` 身份登录
 
-### ❌ Vulnerable Code
+### ❌ 漏洞代码
 
 ```html
 <!-- 调试信息 - 默认管理员账号 用户名: admin 密码: admin123 -->
 {% extends "base.html" %}
 ```
 
-### ✅ Fix
+### ✅ 修复方案
 
-The comment line is removed. There is no legitimate reason to include
-credentials — even in comments — in any deliverable.
+直接移除该注释行。在任何交付物中都没有合理理由包含凭据——即使在注释中也不行。
 
 ---
 
-## 9. V-08: Session Security Misconfiguration
+## 9. V-08：会话安全配置缺失
 
-**CWE:** [CWE-1004 — Sensitive Cookie Without 'HttpOnly' Flag](https://cwe.mitre.org/data/definitions/1004.html)  
-**CVSS 3.1:** 6.1 (Medium) — `AV:N/AC:H/PR:N/UI:R/S:U/C:H/I:L/A:N`  
-**OWASP Top 10:** A05:2021 — Security Misconfiguration
+**CWE：** [CWE-1004 — 缺少 HttpOnly 标志的敏感 Cookie](https://cwe.mitre.org/data/definitions/1004.html)  
+**CVSS 3.1：** 6.1（中危）— `AV:N/AC:H/PR:N/UI:R/S:U/C:H/I:L/A:N`  
+**OWASP Top 10：** A05:2021 — 安全配置错误
 
-### Description
+### 漏洞描述
 
-Flask session cookies were created with **default settings** — no `HttpOnly`
-flag (accessible via JavaScript → XSS stealing), no `SameSite` attribute
-(vulnerable to CSRF), and no explicit expiration time (session could remain
-valid indefinitely).
+Flask 会话 Cookie 使用**默认设置**——无 `HttpOnly` 标志（可通过 JavaScript 访问 → XSS 窃取），无 `SameSite` 属性（易受 CSRF 攻击），无明确过期时间（会话可能无限期有效）。
 
-### ❌ Vulnerable Code
+### ❌ 漏洞代码
 
 ```python
-# No session configuration — Flask defaults:
+# 无会话配置 —— Flask 默认值：
 #   SESSION_COOKIE_HTTPONLY  = False
 #   SESSION_COOKIE_SAMESITE  = None
 #   SESSION_COOKIE_SECURE    = False
-#   PERMANENT_SESSION_LIFETIME = 31 days
+#   PERMANENT_SESSION_LIFETIME = 31 天
 ```
 
-### ✅ Fix
+### ✅ 修复方案
 
 ```python
 from datetime import timedelta
 
 app.config.update(
-    SESSION_COOKIE_HTTPONLY=True,           # Not accessible via JS
-    SESSION_COOKIE_SAMESITE="Lax",          # Mitigates CSRF
-    SESSION_COOKIE_SECURE=False,            # True in production (HTTPS)
-    PERMANENT_SESSION_LIFETIME=timedelta(hours=2),  # Session expires
+    SESSION_COOKIE_HTTPONLY=True,           # 不可通过 JS 访问
+    SESSION_COOKIE_SAMESITE="Lax",          # 缓解 CSRF
+    SESSION_COOKIE_SECURE=False,            # 生产环境置为 True（需 HTTPS）
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=2),  # 2 小时过期
 )
 ```
 
 ---
 
-## 10. V-09: Missing Security Response Headers
+## 10. V-09：安全响应头缺失
 
-**CWE:** [CWE-693 — Protection Mechanism Failure](https://cwe.mitre.org/data/definitions/693.html)  
-**CVSS 3.1:** 5.3 (Medium) — `AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:N`  
-**OWASP Top 10:** A05:2021 — Security Misconfiguration
+**CWE：** [CWE-693 — 防护机制失效](https://cwe.mitre.org/data/definitions/693.html)  
+**CVSS 3.1：** 5.3（中危）— `AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:N`  
+**OWASP Top 10：** A05:2021 — 安全配置错误
 
-### Description
+### 漏洞描述
 
-The application returned HTTP responses with **no security-related headers**.
-Browsers therefore fell back to permissive defaults, making the application
-vulnerable to clickjacking, MIME-type confusion attacks, and content caching
-of sensitive pages.
+应用返回的 HTTP 响应中**未设置任何安全相关头部**。浏览器因此采用宽松的默认行为，使应用易受点击劫持、MIME 类型混淆攻击以及敏感页面缓存。
 
-### ✅ Fix
+### ✅ 修复方案
 
 ```python
 @app.after_request
@@ -497,41 +451,38 @@ def add_security_headers(response):
     return response
 ```
 
-| Header | Purpose |
-|--------|---------|
-| `X-Content-Type-Options: nosniff` | Prevents browsers from MIME-type sniffing — forces them to honor the declared `Content-Type`. Mitigates drive-by download attacks. |
-| `X-Frame-Options: DENY` | Blocks the page from being rendered in an `<iframe>`, `<frame>`, or `<object>` — prevents clickjacking. |
-| `X-XSS-Protection: 1; mode=block` | Enables the browser's built-in reflected XSS filter (legacy, but still beneficial on older browsers). |
-| `Strict-Transport-Security: max-age=31536000` | Instructs browsers to _only_ communicate with the server over HTTPS for the next year — prevents SSL-strip attacks. |
-| `Cache-Control: no-store` | Prevents browsers and intermediate proxies from caching the response — critical for pages containing session-dependent content. |
+| 响应头 | 作用 |
+|--------|------|
+| `X-Content-Type-Options: nosniff` | 阻止浏览器进行 MIME 类型嗅探，强制使用声明的 `Content-Type` |
+| `X-Frame-Options: DENY` | 禁止页面在 `<iframe>`、`<frame>` 或 `<object>` 中渲染——防止点击劫持 |
+| `X-XSS-Protection: 1; mode=block` | 启用浏览器内置反射型 XSS 过滤器 |
+| `Strict-Transport-Security: max-age=31536000` | 指示浏览器在接下来一年内仅通过 HTTPS 通信——防止 SSL-strip 攻击 |
+| `Cache-Control: no-store` | 阻止浏览器和代理缓存响应——对包含会话依赖内容的页面至关重要 |
 
 ---
 
-## 11. V-10: Cross-Site Request Forgery (CSRF)
+## 11. V-10：跨站请求伪造
 
-**CWE:** [CWE-352 — Cross-Site Request Forgery](https://cwe.mitre.org/data/definitions/352.html)  
-**CVSS 3.1:** 6.5 (Medium) — `AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:H/A:N`  
-**OWASP Top 10:** A01:2021 — Broken Access Control
+**CWE：** [CWE-352 — 跨站请求伪造](https://cwe.mitre.org/data/definitions/352.html)  
+**CVSS 3.1：** 6.5（中危）— `AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:H/A:N`  
+**OWASP Top 10：** A01:2021 — 越权控制
 
-### Description
+### 漏洞描述
 
-The login form does not include a CSRF token. An attacker can craft a malicious
-page that automatically submits a POST request to the login endpoint from the
-victim's browser — and because the request carries the victim's cookies, the
-server cannot distinguish it from a legitimate request.
+登录表单未包含 CSRF 令牌。攻击者可以构造恶意页面，自动从受害者浏览器向登录端点提交 POST 请求——由于请求携带受害者的 Cookie，服务端无法将其与合法请求区分。
 
-### ❌ Vulnerable Code
+### ❌ 漏洞代码
 
 ```html
 <form method="POST" action="/login">
-    <!-- No anti-CSRF token -->
+    <!-- 无防 CSRF 令牌 -->
     <input type="text" name="username">
     <input type="password" name="password">
     <button type="submit">登录</button>
 </form>
 ```
 
-### ✅ Fix
+### ✅ 修复方案
 
 ```python
 from flask_wtf.csrf import CSRFProtect
@@ -548,175 +499,155 @@ csrf = CSRFProtect(app)
 </form>
 ```
 
-Flask-WTF generates a unique, cryptographically random token per session,
-embedded as a hidden field. On POST, the server validates that the submitted
-token matches the one stored in the session — a cross-origin attacker cannot
-read or predict this value.
+Flask-WTF 为每个会话生成唯一的密码学安全令牌，嵌入为隐藏字段。POST 请求时，服务端验证提交的令牌与会话中存储的是否匹配——跨源攻击者无法读取或预测此值。
 
 ---
 
-## 12. V-11: User Enumeration via Error Messages
+## 12. V-11：登录错误枚举用户
 
-**CWE:** [CWE-204 — Observable Response Discrepancy](https://cwe.mitre.org/data/definitions/204.html)  
-**CVSS 3.1:** 5.3 (Medium) — `AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N`  
-**OWASP Top 10:** A05:2021 — Security Misconfiguration
+**CWE：** [CWE-204 — 可观察的响应差异](https://cwe.mitre.org/data/definitions/204.html)  
+**CVSS 3.1：** 5.3（中危）— `AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N`  
+**OWASP Top 10：** A05:2021 — 安全配置错误
 
-### Description
+### 漏洞描述
 
-Distinguishing between "user not found" and "wrong password" error messages
-allows an attacker to **enumerate valid usernames** by iterating through a
-list and observing which ones trigger which message. Once valid usernames are
-identified, the attacker can focus their brute-force efforts on those accounts.
+如果"用户不存在"和"密码错误"返回不同的错误信息，攻击者可以通过遍历用户名列表并观察哪些触发哪种信息来**枚举有效用户名**。一旦确认有效用户名，攻击者可集中爆破目标账号。
 
-### ❌ Vulnerable Code
+### ❌ 漏洞代码
 
 ```python
-# Example of what distinguishable errors look like:
+# 可区分错误信息的示例：
 if username not in USERS:
     return render_template("login.html", error="用户不存在")
 else:
     return render_template("login.html", error="密码错误")
 ```
 
-### ✅ Fix
+### ✅ 修复方案
 
 ```python
-# Always return the same generic message regardless of which field is wrong.
+# 无论哪个字段错误，始终返回相同通用信息
 return render_template("login.html", error="用户名或密码错误")
 ```
 
-The response is identical whether the username exists or not. An attacker
-cannot distinguish the two cases by examining the response body, status code,
-or any other observable output.
+无论用户名是否存在，响应内容完全相同。攻击者无法通过检查响应体、状态码或任何其他可观察输出区分两种情况。
 
 ---
 
-## 13. V-12: Missing Input Validation
+## 13. V-12：输入校验缺失
 
-**CWE:** [CWE-20 — Improper Input Validation](https://cwe.mitre.org/data/definitions/20.html)  
-**CVSS 3.1:** 5.3 (Medium) — `AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L`  
-**OWASP Top 10:** A04:2021 — Insecure Design
+**CWE：** [CWE-20 — 输入验证不当](https://cwe.mitre.org/data/definitions/20.html)  
+**CVSS 3.1：** 5.3（中危）— `AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L`  
+**OWASP Top 10：** A04:2021 — 不安全设计
 
-### Description
+### 漏洞描述
 
-Input fields had **no length restrictions**. An attacker could submit extremely
-long strings, potentially causing:
-- **Resource exhaustion** (large string processing overhead).
-- **Disk/log flooding** (if input is written to audit logs).
-- **Memory-based denial of service.**
+输入框**无长度限制**。攻击者可提交超长字符串，可能导致：
+- **资源耗尽**（处理超长字符串的开销）
+- **日志填满**（如果输入被写入审计日志）
+- **内存拒绝服务**
 
-### ❌ Vulnerable Code
+### ❌ 漏洞代码
 
 ```html
 <input type="text" name="username" placeholder="请输入用户名" required>
 ```
 
-### ✅ Fix
+### ✅ 修复方案
 
 ```html
-<!-- Client-side constraints -->
+<!-- 客户端限制 -->
 <input type="text" name="username" maxlength="50" required>
 <input type="password" name="password" minlength="6" required>
 ```
 
 ```python
-# Server-side — request body limit
+# 服务端 —— 请求体限制
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024  # 16 KB
 ```
 
 ---
 
-## 14. V-13: Timing Side-Channel Attack
+## 14. V-13：时序侧信道攻击
 
-**CWE:** [CWE-208 — Observable Timing Discrepancy](https://cwe.mitre.org/data/definitions/208.html)  
-**CVSS 3.1:** 3.7 (Low) — `AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N`  
-**OWASP Top 10:** A02:2021 — Cryptographic Failures
+**CWE：** [CWE-208 — 可观察的时序差异](https://cwe.mitre.org/data/definitions/208.html)  
+**CVSS 3.1：** 3.7（低危）— `AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N`  
+**OWASP Top 10：** A02:2021 — 密码学失败
 
-### Description
+### 漏洞描述
 
-Python's `==` operator compares strings **character by character** and returns
-immediately on the first mismatch. An attacker can measure the response time
-for thousands of candidate passwords — even a **microsecond-scale** difference
-can reveal how many characters matched, allowing progressive character-by-
-character password inference.
+Python 的 `==` 运算符**逐字符**比较字符串，在第一个不匹配处立即返回。攻击者可以测量数千个候选密码的响应时间——即使**微秒级**的差异也能揭示匹配了多少字符，从而逐字符推断密码。
 
-### ❌ Vulnerable Code
+### ❌ 漏洞代码
 
 ```python
-# Early-exit on first mismatched character — timing varies by input
+# 第一个不匹配字符处提前返回 —— 响应时间因输入而异
 USERS[username]["password"] == password
 ```
 
-### ✅ Fix
+### ✅ 修复方案
 
 ```python
 check_password_hash(user["password_hash"], password)
 ```
 
-`check_password_hash()` internally uses **`hmac.compare_digest(a, b)`** —
-a constant-time comparison function. The function takes **exactly the same
-amount of time** regardless of how many characters match, eliminating the
-timing side-channel.
+`check_password_hash()` 内部使用 **`hmac.compare_digest(a, b)`**——常量时间比较函数。无论匹配多少个字符，该函数耗时**完全相同**，消除了时序侧信道。
 
 ---
 
-## 15. Security Development Checklist
+## 15. 安全开发检查清单
 
-### Code-level checks
+### 代码层面
 
-- [ ] **Password storage** — Use bcrypt / pbkdf2 / argon2 (never plaintext)
-- [ ] **TLS everywhere** — HTTPS for all connections (enforce via HSTS)
-- [ ] **Rate limiting** — Throttle authentication endpoints
-- [ ] **Secret key** — Use cryptographically random values (≥ 256-bit)
-- [ ] **Debug mode** — Disable in production environments
-- [ ] **Template context** — Never pass sensitive fields to templates
-- [ ] **Hardcoded secrets** — Zero credentials in source code or comments
-- [ ] **Session cookies** — HttpOnly + SameSite + Secure + finite TTL
-- [ ] **Security headers** — X-Frame-Options, HSTS, CSP, etc.
-- [ ] **CSRF protection** — Token-based validation for state-changing requests
-- [ ] **Error messages** — Uniform messages to prevent user enumeration
-- [ ] **Input validation** — Server-side + client-side length/type constraints
-- [ ] **Constant-time comparison** — Use `hmac.compare_digest` for secrets
-- [ ] **Payload limits** — Enforce maximum request body size
-- [ ] **Logging** — Log auth failures (never log passwords)
+- [ ] **密码存储** — 使用 bcrypt / pbkdf2 / argon2（杜绝明文）
+- [ ] **全站 TLS** — 所有连接使用 HTTPS（通过 HSTS 强制执行）
+- [ ] **速率限制** — 对认证端点进行限流
+- [ ] **密钥强度** — 使用密码学安全随机值（≥ 256 位）
+- [ ] **调试模式** — 生产环境关闭
+- [ ] **模板上下文** — 绝不将敏感字段传递给模板
+- [ ] **硬编码密钥** — 源码和注释中零凭据
+- [ ] **会话 Cookie** — HttpOnly + SameSite + Secure + 有限时效
+- [ ] **安全响应头** — X-Frame-Options、HSTS、CSP 等
+- [ ] **CSRF 防护** — 状态变更请求需令牌验证
+- [ ] **错误信息** — 统一提示，防止用户枚举
+- [ ] **输入验证** — 服务端 + 客户端的长度/类型限制
+- [ ] **常量时间比较** — 对密钥使用 `hmac.compare_digest`
+- [ ] **请求体限制** — 强制最大请求大小
+- [ ] **日志记录** — 记录认证失败（绝不记录密码）
 
-### Infrastructure checks
+### 基础设施层面
 
-- [ ] **Dependency scanning** — Keep libraries updated (`pip-audit`, Dependabot)
-- [ ] **Static analysis** — Run Bandit / Semgrep on every commit
-- [ ] **Penetration testing** — Regular security testing of all endpoints
-
----
-
-## 16. Recommended Tools & Resources
-
-### Security Testing Tools
-
-| Tool | Purpose | Link |
-|------|---------|------|
-| **Burp Suite** | Web proxy, intercept, intruder (password brute-forcing) | [portswigger.net](https://portswigger.net/burp) |
-| **OWASP ZAP** | Automated vulnerability scanning | [owasp.org/zap](https://www.zapproxy.org/) |
-| **Wireshark** | Network traffic analysis (password sniffing) | [wireshark.org](https://www.wireshark.org/) |
-| **Hydra** | Network login cracker (brute-force) | [github.com/vanhauser-thc/thc-hydra](https://github.com/vanhauser-thc/thc-hydra) |
-| **sqlmap** | Automated SQL injection detection | [sqlmap.org](https://sqlmap.org/) |
-| **Nmap** | Network discovery and port scanning | [nmap.org](https://nmap.org/) |
-| **Nikto** | Web server scanner | [cirt.net/Nikto2](https://www.cirt.net/Nikto2) |
-| **Bandit** | Python security linter (SAST) | [github.com/PyCQA/bandit](https://github.com/PyCQA/bandit) |
-
-### Security Standards & References
-
-| Resource | Description | Link |
-|----------|-------------|------|
-| **OWASP Top 10 (2021)** | Web application security risks | [owasp.org/Top10](https://owasp.org/www-project-top-ten/) |
-| **OWASP Cheat Sheet Series** | Developer security reference | [cheatsheetseries.owasp.org](https://cheatsheetseries.owasp.org/) |
-| **CWE** | Common Weakness Enumeration | [cwe.mitre.org](https://cwe.mitre.org/) |
-| **SANS 25** | Most dangerous software errors | [sans.org/top25](https://www.sans.org/top25-software-errors/) |
+- [ ] **依赖扫描** — 保持库更新（`pip-audit`、Dependabot）
+- [ ] **静态分析** — 每次提交运行 Bandit / Semgrep
+- [ ] **渗透测试** — 定期对所有端点进行安全测试
 
 ---
 
-> **Disclaimer**  
-> This report is intended **exclusively for cybersecurity education and authorized
-> penetration testing**. The techniques described herein should only be applied
-> to systems you own or have explicit written permission to test. Unauthorized
-> access to computer systems is illegal under the Computer Fraud and Abuse Act
-> (CFAA) and equivalent laws in other jurisdictions.
+## 16. 推荐工具与资源
+
+### 安全测试工具
+
+| 工具 | 用途 | 链接 |
+|------|------|------|
+| **Burp Suite** | Web 代理、拦截、爆破 | [portswigger.net](https://portswigger.net/burp) |
+| **OWASP ZAP** | 自动化漏洞扫描 | [owasp.org/zap](https://www.zapproxy.org/) |
+| **Wireshark** | 网络流量分析（密码嗅探） | [wireshark.org](https://www.wireshark.org/) |
+| **Hydra** | 网络登录破解（暴力破解） | [github.com/vanhauser-thc/thc-hydra](https://github.com/vanhauser-thc/thc-hydra) |
+| **sqlmap** | SQL 注入自动检测 | [sqlmap.org](https://sqlmap.org/) |
+| **Nmap** | 网络发现与端口扫描 | [nmap.org](https://nmap.org/) |
+| **Nikto** | Web 服务器扫描器 | [cirt.net/Nikto2](https://www.cirt.net/Nikto2) |
+| **Bandit** | Python 安全静态分析 | [github.com/PyCQA/bandit](https://github.com/PyCQA/bandit) |
+
+### 安全标准与参考
+
+| 资源 | 说明 | 链接 |
+|------|------|------|
+| **OWASP Top 10 (2021)** | Web 应用安全风险 | [owasp.org/Top10](https://owasp.org/www-project-top-ten/) |
+| **OWASP Cheat Sheet** | 开发者安全速查表 | [cheatsheetseries.owasp.org](https://cheatsheetseries.owasp.org/) |
+| **CWE** | 通用弱点枚举 | [cwe.mitre.org](https://cwe.mitre.org/) |
+| **SANS 25** | 最危险的软件错误 | [sans.org/top25](https://www.sans.org/top25-software-errors/) |
+
+---
+
+> **免责声明**  
+> 本报告**仅供网络安全教育和授权渗透测试使用**。所述技术仅应应用于您拥有或获得明确书面授权的系统。未经授权访问计算机系统违反相关法律法规。
