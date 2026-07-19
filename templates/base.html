@@ -3,23 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>用户管理系统 - 安全版</title>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>{% block title %}用户管理系统{% endblock %} — 安全版</title>
+    <meta name="description" content="用户信息管理平台 — Web 安全加固演示系统">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <nav class="navbar">
-        <div class="nav-brand">用户管理系统</div>
-        <div class="nav-menu">
-            {% if session.get('username') %}
-                <span class="nav-welcome">欢迎，{{ session.get('username') }}</span>
-                <a href="{{ url_for('logout') }}" class="nav-link">退出</a>
-            {% else %}
-                <a href="{{ url_for('login') }}" class="nav-link">登录</a>
-            {% endif %}
+    <a href="#main-content" class="skip-link">跳转到主内容</a>
+
+    <header class="navbar" role="banner">
+        <div class="nav-brand" aria-label="用户管理系统">
+            <span class="nav-brand-icon" aria-hidden="true">🛡️</span>
+            <span class="nav-brand-text">用户管理系统</span>
         </div>
-    </nav>
-    <main class="container">
+        <nav class="nav-menu" role="navigation" aria-label="主导航">
+            {% if session.get('username') %}
+                <span class="nav-welcome" aria-label="当前用户">
+                    欢迎，<span class="nav-username">{{ session.get('username') }}</span>
+                </span>
+                <a href="{{ url_for('logout') }}" class="nav-link" role="button">退出</a>
+            {% else %}
+                <a href="{{ url_for('login') }}" class="nav-link" role="button">登录</a>
+            {% endif %}
+        </nav>
+    </header>
+
+    <main id="main-content" class="container" role="main">
         {% block content %}{% endblock %}
     </main>
+
+    <footer class="footer" role="contentinfo">
+        <p class="footer-text">用户管理系统 · 安全加固演示 · 仅限教学使用</p>
+    </footer>
 </body>
 </html>

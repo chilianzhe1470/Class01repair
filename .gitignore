@@ -1,7 +1,31 @@
+# Python __pycache__ / bytecode
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
-.env
+
+# Virtual environments
 venv/
 .venv/
+env/
+.env/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Project specific
 *.db
+*.sqlite
+instance/
+
+# Environment variables (contains real secrets)
+.env
+
+# Logs
+*.log
+/tmp/
