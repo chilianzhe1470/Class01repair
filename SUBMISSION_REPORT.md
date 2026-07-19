@@ -1,177 +1,190 @@
-# Web Application Security Assessment Report
+# Web 应用安全评估报告
 
-**Project:** User Management Platform — Original vs. Hardened  
-**Date:** July 19, 2026  
-**Author:** chilianzhe1470  
-**Classification:** Confidential — For Educational Purposes Only
-
----
-
-## 1. Executive Summary
-
-A security assessment was conducted on a Flask-based user management web application. The assessment identified **13 security vulnerabilities** across authentication, session management, and transport security domains. All findings have been remediated in the hardened version.
-
-**Risk Summary:**
-
-| Severity | Count | Key Findings |
-|----------|:-----:|--------------|
-| Critical | 4 | Plaintext passwords, cleartext transmission, brute-force, client-side password leak |
-| High | 6 | Weak secret key, debug mode, hardcoded credentials, session config, missing headers, CSRF |
-| Medium | 3 | User enumeration, input validation, timing side-channel |
-
-**Remediation Status:** All 13 findings have been addressed. The hardened application is deployed and verified.
+**项目名称：** 用户信息管理平台 — 漏洞版 vs. 安全加固版  
+**评估日期：** 2026年7月19日  
+**报告作者：** chilianzhe1470  
+**密级：** 内部 — 仅限教学使用
 
 ---
 
-## 2. Scope
+## 1. 总体摘要
 
-| Item | Details |
-|------|---------|
-| **Target Application** | User Management Platform (Flask) |
-| **Vulnerable Version** | Original (deployed on port 5000) |
-| **Hardened Version** | Repaired (deployed on port 8080) |
-| **Source Code** | https://github.com/chilianzhe1470/Class01repair |
-| **Assessment Type** | Code review + dynamic analysis |
-| **Methodology** | OWASP Top 10 (2021), CWE |
+对基于 Flask 的用户管理 Web 应用进行了安全评估。本次评估共发现 **13 项安全漏洞**，涵盖身份认证、会话管理、传输安全等领域。所有漏洞已在加固版本中完成修复。
 
----
+**风险汇总：**
 
-## 3. Detailed Findings
+| 严重程度 | 数量 | 主要问题 |
+|----------|:----:|----------|
+| 严重 (Critical) | 4 | 明文密码存储、明文传输、暴力破解、前端密码泄露 |
+| 高危 (High) | 6 | 弱密钥、调试模式泄露、硬编码凭据、会话配置缺失、安全头缺失、CSRF |
+| 中危 (Medium) | 3 | 用户枚举、输入校验缺失、时序攻击 |
 
-### 3.1 Critical Severity
-
-#### V-01: Plaintext Password Storage
-
-| Attribute | Value |
-|-----------|-------|
-| **CWE** | [CWE-312](https://cwe.mitre.org/data/definitions/312.html) |
-| **Location** | `app.py` — USERS dictionary |
-| **Original Code** | `"password": "admin123"` — passwords stored as raw strings |
-| **Fix** | `generate_password_hash("admin123")` — pbkdf2:sha256 with random salt |
-| **Verification** | Hash values are non-reversible; identical passwords produce distinct hashes |
-
-#### V-02: Plaintext Password Transmission
-
-| Attribute | Value |
-|-----------|-------|
-| **CWE** | [CWE-319](https://cwe.mitre.org/data/definitions/319.html) |
-| **Location** | Network layer — HTTP POST body |
-| **Original Issue** | Username and password sent unencrypted over HTTP |
-| **Fix** | HSTS header (`max-age=31536000; includeSubDomains`) enforced; TLS recommended for production |
-| **Verification** | Security headers confirmed via `curl -I` |
-
-#### V-03: Unrestricted Brute-Force Attack
-
-| Attribute | Value |
-|-----------|-------|
-| **CWE** | [CWE-307](https://cwe.mitre.org/data/definitions/307.html) |
-| **Location** | `/login` POST endpoint |
-| **Original Issue** | No rate limiting — attacker can try unlimited passwords |
-| **Fix** | Flask-Limiter: 5 requests per minute per IP; HTTP 429 after threshold |
-| **Verification** | 6th request within 1 minute returns HTTP 429 |
-
-#### V-06: Client-Side Password Leakage
-
-| Attribute | Value |
-|-----------|-------|
-| **CWE** | [CWE-200](https://cwe.mitre.org/data/definitions/200.html) |
-| **Location** | Template rendering (`index.html`) |
-| **Original Issue** | `password` field passed to template and rendered as visible text |
-| **Fix** | `_sanitize_user()` strips all password-derived fields before template rendering |
-| **Verification** | Viewing page source confirms no password field present |
-
-#### V-07: Hardcoded Credentials in HTML Comments
-
-| Attribute | Value |
-|-----------|-------|
-| **CWE** | [CWE-798](https://cwe.mitre.org/data/definitions/798.html) |
-| **Location** | `templates/login.html` |
-| **Original Issue** | `<!-- 调试信息 - 默认管理员账号 用户名: admin 密码: admin123 -->` |
-| **Fix** | Comment line removed in its entirety |
-| **Verification** | Page source contains no credential-bearing comments |
-
-### 3.2 High Severity
-
-#### V-04: Weak Session Secret Key
-
-| Attribute | Value |
-|-----------|-------|
-| **CWE** | [CWE-330](https://cwe.mitre.org/data/definitions/330.html) |
-| **Original Issue** | `app.secret_key = "dev-key-2025"` — static, low-entropy key |
-| **Fix** | `secrets.token_hex(32)` — cryptographically random 256-bit key |
-| **Verification** | Key changes on every restart unless `SECRET_KEY` env var is set |
-
-#### V-05: Debug Mode Information Leakage
-
-| Attribute | Value |
-|-----------|-------|
-| **CWE** | [CWE-489](https://cwe.mitre.org/data/definitions/489.html) |
-| **Original Issue** | `debug=True` always active — Werkzeug debugger exposes code execution |
-| **Fix** | Debug mode gated by `FLASK_ENV=development` environment variable |
-| **Verification** | Without `FLASK_ENV=development`, debug mode is off by default |
-
-#### V-08: Session Security Misconfiguration
-
-| Attribute | Value |
-|-----------|-------|
-| **CWE** | [CWE-1004](https://cwe.mitre.org/data/definitions/1004.html) |
-| **Original Issue** | No `HttpOnly`, no `SameSite`, no expiration limit |
-| **Fix** | `HttpOnly=True`, `SameSite=Lax`, `PERMANENT_SESSION_LIFETIME=2 hours` |
-| **Verification** | Session cookie inspected via browser DevTools confirms flags |
-
-#### V-09: Missing Security Response Headers
-
-| Attribute | Value |
-|-----------|-------|
-| **CWE** | [CWE-693](https://cwe.mitre.org/data/definitions/693.html) |
-| **Original Issue** | No security headers in HTTP responses |
-| **Fix** | 5 headers injected: X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, HSTS, Cache-Control |
-| **Verification** | `curl -s -I http://localhost:8080/` confirms all 5 headers present |
-
-#### V-10: Cross-Site Request Forgery (CSRF)
-
-| Attribute | Value |
-|-----------|-------|
-| **CWE** | [CWE-352](https://cwe.mitre.org/data/definitions/352.html) |
-| **Location** | Login form POST |
-| **Original Issue** | No anti-CSRF token — cross-origin form submission possible |
-| **Fix** | `Flask-WTF` with `{{ csrf_token() }}` hidden field and server-side validation |
-| **Verification** | Form HTML contains `csrf_token` hidden input; POST without token returns 400 |
-
-#### V-11: User Enumeration via Error Messages
-
-| Attribute | Value |
-|-----------|-------|
-| **CWE** | [CWE-204](https://cwe.mitre.org/data/definitions/204.html) |
-| **Original Issue** | Distinguishable error messages reveal whether a username exists |
-| **Fix** | Uniform message: "用户名或密码错误" returned for all authentication failures |
-| **Verification** | Invalid username and wrong password both return identical responses |
-
-### 3.3 Medium Severity
-
-#### V-12: Missing Input Validation
-
-| Attribute | Value |
-|-----------|-------|
-| **CWE** | [CWE-20](https://cwe.mitre.org/data/definitions/20.html) |
-| **Original Issue** | No max length on input fields; no request body size limit |
-| **Fix** | `maxlength="50"` on username, `MAX_CONTENT_LENGTH=16KB` server-side |
-| **Verification** | Oversized request body returns HTTP 413 |
-
-#### V-13: Timing Side-Channel Attack
-
-| Attribute | Value |
-|-----------|-------|
-| **CWE** | [CWE-208](https://cwe.mitre.org/data/definitions/208.html) |
-| **Original Issue** | `==` operator exits on first mismatched character — measurable timing variance |
-| **Fix** | `check_password_hash()` uses `hmac.compare_digest()` — constant-time comparison |
-| **Verification** | Matched and unmatched passwords produce indistinguishable response times |
+**修复状态：** 全部 13 项漏洞已修复。加固版应用已部署并通过验证。
 
 ---
 
-## 4. Response Header Verification
+## 2. 评估范围
 
-Headers observed on hardened application:
+| 项目 | 说明 |
+|------|------|
+| **目标应用** | 用户信息管理平台 (Flask) |
+| **漏洞版本** | 原始版（部署于 5000 端口） |
+| **加固版本** | 修复版（部署于 8080 端口） |
+| **源代码** | https://github.com/chilianzhe1470/Class01repair |
+| **评估方式** | 代码审查 + 动态测试 |
+| **评估标准** | OWASP Top 10 (2021)、CWE |
+
+---
+
+## 3. 漏洞详情
+
+### 3.1 严重等级
+
+#### V-01：明文密码存储
+
+| 属性 | 内容 |
+|------|------|
+| **CWE 编号** | [CWE-312](https://cwe.mitre.org/data/definitions/312.html) |
+| **风险描述** | 用户密码以明文形式直接存储在代码字典中，代码泄露将导致所有凭据暴露 |
+| **漏洞位置** | `app.py` — `USERS` 字典 |
+| **原始问题代码** | `"password": "admin123"` — 密码以原始字符串存储 |
+| **修复方案** | `generate_password_hash("admin123")` — 采用 pbkdf2:sha256 加盐哈希 |
+| **验证方式** | 哈希值不可逆，相同密码每次生成的哈希值不同（随机盐值） |
+
+#### V-02：明文密码传输
+
+| 属性 | 内容 |
+|------|------|
+| **CWE 编号** | [CWE-319](https://cwe.mitre.org/data/definitions/319.html) |
+| **风险描述** | 登录表单通过 HTTP 明文提交，中间人攻击者可抓包获取密码 |
+| **漏洞位置** | 网络传输层 — HTTP POST 请求体 |
+| **原始问题** | 用户名和密码未加密直接通过 HTTP 传输 |
+| **修复方案** | 添加 HSTS 响应头（`max-age=31536000; includeSubDomains`）；生产环境建议配置 TLS |
+| **验证方式** | `curl -I` 确认安全响应头已生效 |
+
+#### V-03：暴力破解无限制
+
+| 属性 | 内容 |
+|------|------|
+| **CWE 编号** | [CWE-307](https://cwe.mitre.org/data/definitions/307.html) |
+| **风险描述** | `/login` 接口无频率限制，攻击者可进行自动化密码爆破 |
+| **漏洞位置** | `/login` POST 端点 |
+| **原始问题** | 无速率限制，攻击者可无限尝试密码 |
+| **修复方案** | Flask-Limiter 限制每 IP 每分钟 5 次请求，超出返回 HTTP 429 |
+| **验证方式** | 1 分钟内第 6 次请求返回 429 |
+
+#### V-06：前端页面泄露密码
+
+| 属性 | 内容 |
+|------|------|
+| **CWE 编号** | [CWE-200](https://cwe.mitre.org/data/definitions/200.html) |
+| **风险描述** | 密码字段被传递到 HTML 模板并渲染在页面上，任何查看页面者均可获取 |
+| **漏洞位置** | 模板渲染层（`index.html`） |
+| **原始问题** | 用户字典完整传递到模板，密码明文显示在页面上 |
+| **修复方案** | `_sanitize_user()` 函数在传入模板前剥离所有密码相关字段 |
+| **验证方式** | 查看页面源代码确认无密码字段 |
+
+#### V-07：HTML 注释泄露凭据
+
+| 属性 | 内容 |
+|------|------|
+| **CWE 编号** | [CWE-798](https://cwe.mitre.org/data/definitions/798.html) |
+| **风险描述** | 登录页面 HTML 注释中直接写入了管理员用户名和密码 |
+| **漏洞位置** | `templates/login.html` |
+| **原始问题** | `<!-- 调试信息 - 默认管理员账号 用户名: admin 密码: admin123 -->` |
+| **修复方案** | 彻底移除该注释行 |
+| **验证方式** | 查看页面源码确认无凭据相关注释 |
+
+### 3.2 高危等级
+
+#### V-04：弱会话密钥
+
+| 属性 | 内容 |
+|------|------|
+| **CWE 编号** | [CWE-330](https://cwe.mitre.org/data/definitions/330.html) |
+| **风险描述** | `secret_key` 硬编码为弱字符串，攻击者可伪造会话 Cookie 进行会话劫持 |
+| **原始问题** | `app.secret_key = "dev-key-2025"` — 静态、低熵密钥 |
+| **修复方案** | `secrets.token_hex(32)` — 密码学安全的 256 位随机密钥 |
+| **验证方式** | 不设环境变量时每次重启密钥不同 |
+
+#### V-05：调试模式信息泄露
+
+| 属性 | 内容 |
+|------|------|
+| **CWE 编号** | [CWE-489](https://cwe.mitre.org/data/definitions/489.html) |
+| **风险描述** | 调试模式下 Werkzeug 交互式调试器允许执行任意代码，暴露源代码和变量 |
+| **原始问题** | `debug=True` 始终开启 |
+| **修复方案** | 调试模式由 `FLASK_ENV=development` 环境变量控制 |
+| **验证方式** | 不设置该变量时默认关闭调试模式 |
+
+#### V-08：会话安全配置缺失
+
+| 属性 | 内容 |
+|------|------|
+| **CWE 编号** | [CWE-1004](https://cwe.mitre.org/data/definitions/1004.html) |
+| **风险描述** | Session Cookie 未设置 HttpOnly、SameSite、过期时间 |
+| **原始问题** | 全部使用 Flask 默认值（未配置任何安全选项） |
+| **修复方案** | `HttpOnly=True`、`SameSite=Lax`、`PERMANENT_SESSION_LIFETIME=2 小时` |
+| **验证方式** | 浏览器开发者工具查看 Cookie 属性确认 |
+
+#### V-09：安全响应头缺失
+
+| 属性 | 内容 |
+|------|------|
+| **CWE 编号** | [CWE-693](https://cwe.mitre.org/data/definitions/693.html) |
+| **风险描述** | 应用未设置安全响应头，易受点击劫持、MIME 嗅探等攻击 |
+| **原始问题** | HTTP 响应中无任何安全相关头部 |
+| **修复方案** | 注入 5 项安全头：X-Content-Type-Options、X-Frame-Options、X-XSS-Protection、HSTS、Cache-Control |
+| **验证方式** | `curl -s -I http://localhost:8080/` 确认 5 项头部均存在 |
+
+#### V-10：跨站请求伪造 (CSRF)
+
+| 属性 | 内容 |
+|------|------|
+| **CWE 编号** | [CWE-352](https://cwe.mitre.org/data/definitions/352.html) |
+| **风险描述** | 登录表单无 CSRF Token，攻击者可构造恶意表单诱导用户提交 |
+| **漏洞位置** | 登录表单 POST |
+| **原始问题** | 表单中缺少 CSRF 防护令牌 |
+| **修复方案** | Flask-WTF `{{ csrf_token() }}` 隐藏字段 + 服务端令牌校验 |
+| **验证方式** | 表单 HTML 中包含 `csrf_token` 隐藏输入；无 Token 的 POST 请求返回 400 |
+
+#### V-11：登录错误信息枚举用户
+
+| 属性 | 内容 |
+|------|------|
+| **CWE 编号** | [CWE-204](https://cwe.mitre.org/data/definitions/204.html) |
+| **风险描述** | 错误信息可区分"用户不存在"和"密码错误"，攻击者可枚举有效用户名 |
+| **原始问题** | 错误提示可能暴露用户是否存在 |
+| **修复方案** | 所有认证失败统一返回「用户名或密码错误」 |
+| **验证方式** | 无效用户名和错误密码返回相同的响应内容 |
+
+### 3.3 中危等级
+
+#### V-12：输入校验缺失
+
+| 属性 | 内容 |
+|------|------|
+| **CWE 编号** | [CWE-20](https://cwe.mitre.org/data/definitions/20.html) |
+| **风险描述** | 输入框无长度限制，攻击者可提交超长字符串造成资源耗尽 |
+| **原始问题** | 用户名和密码输入框未限制长度，无请求体大小限制 |
+| **修复方案** | `maxlength="50"`（前端）、`MAX_CONTENT_LENGTH=16KB`（服务端） |
+| **验证方式** | 超长请求体返回 HTTP 413 |
+
+#### V-13：时序侧信道攻击
+
+| 属性 | 内容 |
+|------|------|
+| **CWE 编号** | [CWE-208](https://cwe.mitre.org/data/definitions/208.html) |
+| **风险描述** | 字符串逐字符比较的 `==` 运算符存在响应时间差异，可逐字符推断密码 |
+| **原始问题** | 使用 `==` 直接比对字符串 |
+| **修复方案** | `check_password_hash()` 内部使用 `hmac.compare_digest()` 常量时间比较 |
+| **验证方式** | 正确密码与错误密码的响应时间无统计学差异 |
+
+---
+
+## 4. 安全响应头验证
+
+加固版应用 HTTP 响应头实测结果：
 
 ```
 HTTP/1.1 200 OK
@@ -182,32 +195,32 @@ Strict-Transport-Security: max-age=31536000; includeSubDomains
 Cache-Control: no-store, no-cache, must-revalidate
 ```
 
-All five security headers confirmed present and correctly configured.
+全部 5 项安全头配置正确，已验证通过。
 
 ---
 
-## 5. Rate Limiting Verification
+## 5. 登录限流验证
 
-The `/login` endpoint permits **5 POST requests per minute** per IP address. The 6th request within the window receives HTTP 429. This was verified through sequential request testing.
-
----
-
-## 6. Recommendations for Production Deployment
-
-1. **Enable TLS** — Deploy behind Nginx/Caddy with Let's Encrypt certificates
-2. **Set a strong `SECRET_KEY`** — Use a unique environment variable, not the fallback
-3. **Enable `SESSION_COOKIE_SECURE=True`** — Requires HTTPS to function
-4. **Use Redis for rate-limiter** — Set `REDIS_URL` for persistence across restarts
-5. **Add Content Security Policy (CSP)** — Further mitigate XSS risk
-6. **Add Subresource Integrity (SRI)** — For any external CDN resources
-7. **Regular dependency scanning** — Use `pip-audit` or Dependabot
+`/login` 端点限制为 **每分钟 5 次 POST 请求**（按 IP 计数）。1 分钟内第 6 次请求返回 HTTP 429 Too Many Requests。实测验证通过。
 
 ---
 
-## 7. Conclusion
+## 6. 生产环境部署建议
 
-The original application contained 13 vulnerabilities spanning OWASP Top 2021 categories including Cryptographic Failures (A02), Security Misconfiguration (A05), and Identification & Authentication Failures (A07). All findings have been remediated in the hardened version. The application is now protected against credential theft, brute-force attacks, session hijacking, cross-site request forgery, and information disclosure.
+1. **启用 TLS** — 使用 Nginx/Caddy 反向代理并配置 Let's Encrypt 免费证书
+2. **设置强 `SECRET_KEY`** — 通过环境变量注入，不依赖自动生成的备用密钥
+3. **开启 `SESSION_COOKIE_SECURE=True`** — 确保 Cookie 仅在 HTTPS 连接中传输
+4. **配置 Redis 存储** — 设置 `REDIS_URL` 使限流器状态在服务重启后持续生效
+5. **添加内容安全策略 (CSP)** — 进一步降低 XSS 攻击风险
+6. **添加子资源完整性校验 (SRI)** — 防范 CDN 资源被篡改
+7. **定期依赖扫描** — 使用 `pip-audit` 或 GitHub Dependabot 检测已知漏洞
 
 ---
 
-*This report is submitted as part of a cybersecurity training exercise. All testing was conducted in a controlled environment with authorized access.*
+## 7. 结论
+
+原始应用存在 13 项安全漏洞，涉及 OWASP Top 10 2021 中的密码学失败（A02）、安全配置错误（A05）、身份认证与授权失败（A07）等类别。所有漏洞已在加固版中完成修复。当前应用已具备针对凭据窃取、暴力破解、会话劫持、跨站请求伪造、信息泄露等攻击的防护能力。
+
+---
+
+*本报告作为网络安全实训课程作业提交。所有测试均在授权环境下进行。*
