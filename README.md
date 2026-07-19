@@ -38,7 +38,7 @@ FLASK_ENV=development python app.py
 python app.py
 ```
 
-访问 `http://localhost:5000`
+访问 `http://localhost:8080`
 
 ## 默认账号
 
