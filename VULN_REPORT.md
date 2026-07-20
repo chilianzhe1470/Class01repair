@@ -22,8 +22,10 @@
 12. [V-11：登录错误枚举用户](#12-v-11登录错误枚举用户)
 13. [V-12：输入校验缺失](#13-v-12输入校验缺失)
 14. [V-13：时序侧信道攻击](#13-v-13时序侧信道攻击)
-15. [安全开发检查清单](#15-安全开发检查清单)
-16. [推荐工具与资源](#16-推荐工具与资源)
+15. [V-14：注册功能 SQL 注入](#14-v-14注册功能-sql-注入)
+16. [V-15：搜索功能 SQL 注入](#15-v-15搜索功能-sql-注入)
+17. [安全开发检查清单](#17-安全开发检查清单)
+18. [推荐工具与资源](#18-推荐工具与资源)
 
 ---
 
@@ -44,6 +46,8 @@
 | 11 | 用户枚举 | 🟡 高危 | [CWE-204](https://cwe.mitre.org/data/definitions/204.html) | 错误信息可区分用户是否存在 | 统一返回"用户名或密码错误" |
 | 12 | 输入校验缺失 | 🟢 中危 | [CWE-20](https://cwe.mitre.org/data/definitions/20.html) | 输入框无长度限制 | maxlength + 16 KB 请求体限制 |
 | 13 | 时序攻击 | 🟢 中危 | [CWE-208](https://cwe.mitre.org/data/definitions/208.html) | 使用 `==` 逐字符比较字符串 | `check_password_hash()` 常量时间比较 |
+| **14** | **注册 SQL 注入** | 🔴 严重 | [CWE-89](https://cwe.mitre.org/data/definitions/89.html) | f-string 拼接 SQL INSERT 语句 | 参数化查询（`?` 占位符） |
+| **15** | **搜索 SQL 注入** | 🔴 严重 | [CWE-89](https://cwe.mitre.org/data/definitions/89.html) | f-string 拼接 SQL SELECT 语句 | 参数化查询（`?` 占位符） |
 
 ---
 
@@ -595,7 +599,122 @@ check_password_hash(user["password_hash"], password)
 
 ---
 
-## 15. 安全开发检查清单
+## 14. V-14：注册功能 SQL 注入
+
+**CWE：** [CWE-89 — SQL 注入](https://cwe.mitre.org/data/definitions/89.html)  
+**CVSS 3.1：** 9.8（严重）— `AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H`  
+**OWASP Top 10：** A03:2021 — 注入
+
+### 漏洞描述
+
+注册功能使用 **f-string 字符串拼接**构建 SQL INSERT 语句，未对用户输入做任何过滤或转义。攻击者可在输入框中嵌入恶意 SQL 代码，实现任意 SQL 语句执行。
+
+### 攻击场景
+
+攻击者在手机号字段中注入恶意 SQL：
+```
+'); DELETE FROM users; --
+```
+拼接后的 SQL 语句变为：
+```sql
+INSERT INTO users (username, password, email, phone)
+VALUES ('hacker', 'test123', 'hacker@hack.com', ''); DELETE FROM users; --')
+```
+这将导致 **users 表中所有数据被删除**。
+
+### ❌ 漏洞代码
+
+```python
+# app.py（原始版本）
+sql = (
+    f"INSERT INTO users (username, password, email, phone) "
+    f"VALUES ('{username}', '{password}', '{email}', '{phone}')"
+)
+conn.execute(sql)
+```
+
+### ✅ 修复方案
+
+```python
+# 使用参数化查询 —— 用户输入仅作为数据传递，不会改变 SQL 语义
+sql = "INSERT INTO users (username, password, email, phone) VALUES (?, ?, ?, ?)"
+conn.execute(sql, (username, password, email, phone))
+```
+
+### 验证结果
+
+| 测试项 | 结果 |
+|--------|------|
+| 正常注册 | ✅ 成功（HTTP 302） |
+| 注入 `' OR '1'='1` | ✅ 被拦截，插入为字面值 |
+| 注入 `'); DELETE FROM users;--` | ✅ 被拦截（CSRF 校验先拒绝，参数化后SQL安全） |
+
+---
+
+## 15. V-15：搜索功能 SQL 注入
+
+**CWE：** [CWE-89 — SQL 注入](https://cwe.mitre.org/data/definitions/89.html)  
+**CVSS 3.1：** 7.5（高危）— `AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N`  
+**OWASP Top 10：** A03:2021 — 注入
+
+### 漏洞描述
+
+搜索功能使用 **f-string 字符串拼接**构建 SQL 查询语句，攻击者可通过精心构造的关键词参数执行恶意 SQL，读取数据库中的敏感数据（包括其他用户的密码）。
+
+### 攻击场景
+
+攻击者在搜索框中输入 UNION 注入语句：
+```
+' UNION SELECT id, username, password, phone FROM users --
+```
+拼接后的 SQL 语句变为：
+```sql
+SELECT id, username, email, phone FROM users
+WHERE username LIKE '%' UNION SELECT id, username, password, phone FROM users --%'
+  OR email LIKE '%' UNION SELECT id, username, password, phone FROM users --%'
+```
+该查询将**返回所有用户的密码字段**，导致全部凭据泄露。
+
+### 实测结果
+
+攻击前使用 UNION 注入成功获取到密码：
+```
+共找到 4 条结果
+ID: 1, 用户名: admin, 密码: admin123    ← 密码泄露
+ID: 2, 用户名: alice, 密码: alice2025    ← 密码泄露
+```
+
+### ❌ 漏洞代码
+
+```python
+# app.py（原始版本）
+sql = (
+    f"SELECT id, username, email, phone FROM users "
+    f"WHERE username LIKE '%{keyword}%' OR email LIKE '%{keyword}%'"
+)
+conn.execute(sql)
+```
+
+### ✅ 修复方案
+
+```python
+# 使用参数化查询 —— keyword 仅作为 LIKE 模式的参数传递
+sql = "SELECT id, username, email, phone FROM users WHERE username LIKE ? OR email LIKE ?"
+like_pattern = f"%{keyword}%"
+conn.execute(sql, (like_pattern, like_pattern))
+```
+
+### 验证结果
+
+| 测试项 | 结果 |
+|--------|------|
+| 正常搜索 `admin` | ✅ 返回 1 条结果 |
+| 注入 `' UNION SELECT ...` | ✅ 返回 0 条结果，密码未泄露 |
+| 注入 `' OR '1'='1` | ✅ 返回 0 条结果（字面匹配） |
+
+---
+
+## 17. 安全开发检查清单
 
 ### 代码层面
 
@@ -614,6 +733,7 @@ check_password_hash(user["password_hash"], password)
 - [ ] **常量时间比较** — 对密钥使用 `hmac.compare_digest`
 - [ ] **请求体限制** — 强制最大请求大小
 - [ ] **日志记录** — 记录认证失败（绝不记录密码）
+- [ ] **SQL 注入防护** — 始终使用参数化查询或 ORM，杜绝字符串拼接
 
 ### 基础设施层面
 
@@ -623,7 +743,7 @@ check_password_hash(user["password_hash"], password)
 
 ---
 
-## 16. 推荐工具与资源
+## 18. 推荐工具与资源
 
 ### 安全测试工具
 

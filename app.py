@@ -19,6 +19,8 @@
  11. 错误信息枚举用户 → 统一错误响应
  12. 输入校验缺失 → 客户端 + 服务端双重限制
  13. 时序攻击 → 通过 hmac.compare_digest 常量时间比较
+ 14. SQL 注入（注册） → 参数化查询替代 f-string 拼接
+ 15. SQL 注入（搜索） → 参数化查询替代 f-string 拼接
 """
 
 import logging
@@ -295,8 +297,7 @@ def _register_routes(app: Flask, limiter: Limiter) -> None:
         """处理用户注册。
 
         **GET** — 显示注册表单。
-        **POST** — 将用户数据通过 f-string 拼接 SQL 插入数据库。
-        注意：此处故意使用字符串拼接，未做任何过滤或参数化处理。
+        **POST** — 将用户数据通过参数化查询插入数据库。
 
         Returns:
             注册页的渲染 HTML 模板，或注册成功后重定向至登录页。
@@ -307,15 +308,16 @@ def _register_routes(app: Flask, limiter: Limiter) -> None:
             email = request.form.get("email") or ""
             phone = request.form.get("phone") or ""
 
-            # 使用 f-string 字符串拼接 SQL —— 存在 SQL 注入漏洞（演示目的）
+            # 使用参数化查询 —— 防止 SQL 注入
             sql = (
-                f"INSERT INTO users (username, password, email, phone) "
-                f"VALUES ('{username}', '{password}', '{email}', '{phone}')"
+                "INSERT INTO users (username, password, email, phone) "
+                "VALUES (?, ?, ?, ?)"
             )
-            logger.info("执行 SQL: %s", sql)
+            logger.info("执行 SQL（参数化）: %s", sql)
+            logger.info("参数: username='%s', email='%s', phone='%s'", username, email, phone)
 
             conn = sqlite3.connect(DB_PATH)
-            conn.execute(sql)
+            conn.execute(sql, (username, password, email, phone))
             conn.commit()
             conn.close()
 
@@ -332,23 +334,24 @@ def _register_routes(app: Flask, limiter: Limiter) -> None:
         """搜索用户。
 
         通过 URL 参数 keyword 接收关键词，
-        使用 f-string 拼接 SQL 进行模糊查询。
-        注意：此处故意使用字符串拼接，未做任何过滤或参数化处理。
+        使用参数化查询进行模糊搜索，防止 SQL 注入。
 
         Returns:
             首页的渲染 HTML 模板，包含搜索结果。
         """
         keyword = request.args.get("keyword", "")
 
-        # 使用 f-string 字符串拼接 SQL —— 存在 SQL 注入漏洞（演示目的）
+        # 使用参数化查询 —— 防止 SQL 注入
         sql = (
-            f"SELECT id, username, email, phone FROM users "
-            f"WHERE username LIKE '%{keyword}%' OR email LIKE '%{keyword}%'"
+            "SELECT id, username, email, phone FROM users "
+            "WHERE username LIKE ? OR email LIKE ?"
         )
-        logger.info("执行 SQL: %s", sql)
+        like_pattern = f"%{keyword}%"
+        logger.info("执行 SQL（参数化）: %s", sql)
+        logger.info("参数: keyword='%s', pattern='%s'", keyword, like_pattern)
 
         conn = sqlite3.connect(DB_PATH)
-        cursor = conn.execute(sql)
+        cursor = conn.execute(sql, (like_pattern, like_pattern))
         results: List[Tuple[int, str, str, str]] = cursor.fetchall()
         conn.close()
 

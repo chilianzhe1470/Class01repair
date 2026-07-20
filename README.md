@@ -12,6 +12,7 @@
 将原始漏洞版 [Class01](http://192.168.145.130:5000/) 与加固版进行对比，理解真实的 Web 安全漏洞及其修复方法。
 
 **[🔬 漏洞分析报告](VULN_REPORT.md)** ·
+**[💉 SQL注入修复报告](SQL_INJECTION_REPORT.md)** ·
 **[🚀 快速开始](#-快速开始)** ·
 **[📋 修复清单](#-修复的漏洞清单)**
 
@@ -120,6 +121,8 @@ python app.py
 | 11 | **用户枚举** | 🟡 高危 | 统一返回"用户名或密码错误" | [CWE-204](https://cwe.mitre.org/data/definitions/204.html) |
 | 12 | **输入校验缺失** | 🟢 中危 | maxlength + 16 KB 请求体限制 | [CWE-20](https://cwe.mitre.org/data/definitions/20.html) |
 | 13 | **时序攻击** | 🟢 中危 | `check_password_hash()` 常量时间比较 | [CWE-208](https://cwe.mitre.org/data/definitions/208.html) |
+| 14 | **注册 SQL 注入** | 🔴 严重 | 参数化查询替代 f-string 拼接 | [CWE-89](https://cwe.mitre.org/data/definitions/89.html) |
+| 15 | **搜索 SQL 注入** | 🔴 严重 | 参数化查询替代 f-string 拼接 | [CWE-89](https://cwe.mitre.org/data/definitions/89.html) |
 
 📖 **每个漏洞的详细分析见 [VULN_REPORT.md](VULN_REPORT.md)。**
 
@@ -169,6 +172,7 @@ Classrepair/
 ├── app.py                    # Flask 应用主文件（加固版）
 ├── requirements.txt          # Python 依赖清单
 ├── VULN_REPORT.md            # 漏洞分析报告（完整版）
+├── SQL_INJECTION_REPORT.md   # SQL 注入专项检测与修复报告
 ├── SUBMISSION_REPORT.md      # 安全评估报告（可提交版）
 ├── .env.example              # 环境变量模板
 ├── .gitignore
