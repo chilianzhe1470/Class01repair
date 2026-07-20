@@ -60,8 +60,8 @@
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/chilianzhe1470/Class01repair.git
-cd Class01repair
+git clone https://github.com/chilianzhe1470/Classrepair.git
+cd Classrepair
 
 # 2.（推荐）创建并激活虚拟环境
 python -m venv venv
@@ -133,6 +133,9 @@ python app.py
 | GET | `/login` | 显示登录表单 | 否 | 否 |
 | POST | `/login` | 用户认证 | 否 | ✅ 每分钟 5 次 |
 | GET | `/logout` | 清除会话并重定向到首页 | 否 | 否 |
+| GET | `/register` | 显示注册表单 | 否 | 否 |
+| POST | `/register` | 用户注册（SQLite 存储） | 否 | 否 |
+| GET | `/search` | 按用户名或邮箱搜索用户 | 否 | 否 |
 
 ---
 
@@ -162,7 +165,7 @@ HTTPS_ENABLED=false
 ## 📁 项目结构
 
 ```
-Class01repair/
+Classrepair/
 ├── app.py                    # Flask 应用主文件（加固版）
 ├── requirements.txt          # Python 依赖清单
 ├── VULN_REPORT.md            # 漏洞分析报告（完整版）
@@ -171,10 +174,13 @@ Class01repair/
 ├── .gitignore
 ├── LICENSE                   # MIT 许可证
 ├── README.md                 # 本文件
+├── data/
+│   └── users.db              # SQLite 用户数据库（注册数据）
 ├── templates/
 │   ├── base.html             # 基础布局（导航栏、主容器）
-│   ├── index.html            # 首页（个人信息 / 登录提示）
-│   └── login.html            # 登录表单（含 CSRF 保护）
+│   ├── index.html            # 首页（个人信息 / 搜索 / 登录提示）
+│   ├── login.html            # 登录表单（含 CSRF 保护）
+│   └── register.html         # 注册表单
 └── static/
     └── css/
         └── style.css         # 应用样式表
