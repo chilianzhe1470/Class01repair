@@ -410,6 +410,24 @@ body {
     flex-shrink: 0;
 }
 
+/* 成功提示 */
+.success-msg {
+    background-color: #f6ffed;
+    border: 1px solid #b7eb8f;
+    color: #52c41a;
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--spacing-md);
+    font-size: var(--font-size-sm);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.success-icon {
+    flex-shrink: 0;
+}
+
 /* --------------------------------------------------------------------------
    13. Welcome Page (Logged Out)
    -------------------------------------------------------------------------- */
@@ -488,5 +506,119 @@ body {
     .card {
         box-shadow: none;
         border: 1px solid var(--color-border);
+    }
+}
+
+/* --------------------------------------------------------------------------
+   18. Search Card & Table
+   -------------------------------------------------------------------------- */
+.search-card {
+    margin-top: var(--spacing-lg);
+}
+
+.search-group {
+    display: flex;
+    gap: var(--spacing-sm);
+    align-items: center;
+}
+
+.search-input {
+    flex: 1;
+}
+
+.search-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+    width: auto;
+    padding: 10px 20px;
+}
+
+.search-results {
+    margin-top: var(--spacing-lg);
+}
+
+.results-count {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    margin-bottom: var(--spacing-md);
+}
+
+.search-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-sm);
+}
+
+.search-table thead {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+    color: #fff;
+}
+
+.search-table th {
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+}
+
+.search-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--color-divider);
+    color: var(--color-text);
+}
+
+.search-table tbody tr:hover {
+    background-color: #f5f5ff;
+}
+
+.search-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.no-results {
+    text-align: center;
+    padding: var(--spacing-lg);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+/* --------------------------------------------------------------------------
+   19. Form Footer (Register)
+   -------------------------------------------------------------------------- */
+.form-footer {
+    text-align: center;
+    margin-top: var(--spacing-md);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.form-footer a {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.form-footer a:hover {
+    text-decoration: underline;
+}
+
+/* --------------------------------------------------------------------------
+   20. Responsive — Search
+   -------------------------------------------------------------------------- */
+@media (max-width: 640px) {
+    .search-group {
+        flex-direction: column;
+    }
+
+    .search-btn {
+        width: 100%;
+    }
+
+    .search-table {
+        font-size: var(--font-size-xs);
+    }
+
+    .search-table th,
+    .search-table td {
+        padding: 8px 6px;
     }
 }

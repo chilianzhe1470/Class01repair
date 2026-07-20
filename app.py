@@ -24,9 +24,10 @@
 import logging
 import os
 import secrets
+import sqlite3
 import sys
 from datetime import timedelta
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Tuple
 
 from flask import Flask, redirect, render_template, request, session, url_for
 from flask_limiter import Limiter
@@ -43,6 +44,45 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
 )
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# 数据库路径
+# ---------------------------------------------------------------------------
+DB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+DB_PATH = os.path.join(DB_DIR, "users.db")
+
+
+def init_db() -> None:
+    """初始化 SQLite 数据库，创建 users 表并插入默认用户。
+
+    数据库文件保存在 data/ 目录下。
+    使用 INSERT OR IGNORE 防止重复插入默认用户。
+    """
+    os.makedirs(DB_DIR, exist_ok=True)
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            email TEXT,
+            phone TEXT
+        )
+        """
+    )
+    # 插入默认用户（INSERT OR IGNORE 防止重复）
+    conn.execute(
+        "INSERT OR IGNORE INTO users (username, password, email, phone) VALUES (?, ?, ?, ?)",
+        ("admin", "admin123", "admin@example.com", "13800138000"),
+    )
+    conn.execute(
+        "INSERT OR IGNORE INTO users (username, password, email, phone) VALUES (?, ?, ?, ?)",
+        ("alice", "alice2025", "alice@example.com", "13900139001"),
+    )
+    conn.commit()
+    conn.close()
+    logger.info("数据库初始化完成: %s", DB_PATH)
 
 
 # ---------------------------------------------------------------------------
@@ -200,7 +240,9 @@ def _register_routes(app: Flask, limiter: Limiter) -> None:
         """
         username: Optional[str] = session.get("username")
         user_info = _sanitize_user(USERS.get(username)) if username else None
-        return render_template("index.html", user=user_info)
+        return render_template(
+            "index.html", user=user_info, search_results=None, keyword=None
+        )
 
     # ------------------------------------------------------------------
     # 路由：登录（GET + POST，含限流）
@@ -210,7 +252,7 @@ def _register_routes(app: Flask, limiter: Limiter) -> None:
     def login():
         """处理用户认证。
 
-        **GET** — 显示登录表单。
+        **GET** — 显示登录表单，可接受 msg 参数（如注册成功提示）。
         **POST** — 验证凭据（与哈希用户存储比对）。
         成功时将用户名持久化到会话并重定向至首页。
         失败时返回通用错误信息，防止用户枚举攻击。
@@ -220,12 +262,14 @@ def _register_routes(app: Flask, limiter: Limiter) -> None:
         Returns:
             登录页的渲染 HTML 模板，或认证成功时重定向至首页。
         """
+        msg = request.args.get("msg")
+
         if request.method == "POST":
             username: str = (request.form.get("username") or "").strip()
             password: str = request.form.get("password") or ""
 
             if not username or not password:
-                return render_template("login.html", error="用户名和密码不能为空")
+                return render_template("login.html", error="用户名和密码不能为空", msg=msg)
 
             user = USERS.get(username)
             if user and check_password_hash(
@@ -239,9 +283,81 @@ def _register_routes(app: Flask, limiter: Limiter) -> None:
             # 统一错误信息 —— 不区分"用户不存在"和"密码错误"
             # 以防止用户枚举攻击。
             logger.warning("用户名 '%s' 登录失败", username)
-            return render_template("login.html", error="用户名或密码错误")
+            return render_template("login.html", error="用户名或密码错误", msg=msg)
 
-        return render_template("login.html")
+        return render_template("login.html", msg=msg)
+
+    # ------------------------------------------------------------------
+    # 路由：注册（GET + POST）
+    # ------------------------------------------------------------------
+    @app.route("/register", methods=["GET", "POST"])
+    def register():
+        """处理用户注册。
+
+        **GET** — 显示注册表单。
+        **POST** — 将用户数据通过 f-string 拼接 SQL 插入数据库。
+        注意：此处故意使用字符串拼接，未做任何过滤或参数化处理。
+
+        Returns:
+            注册页的渲染 HTML 模板，或注册成功后重定向至登录页。
+        """
+        if request.method == "POST":
+            username = request.form.get("username") or ""
+            password = request.form.get("password") or ""
+            email = request.form.get("email") or ""
+            phone = request.form.get("phone") or ""
+
+            # 使用 f-string 字符串拼接 SQL —— 存在 SQL 注入漏洞（演示目的）
+            sql = (
+                f"INSERT INTO users (username, password, email, phone) "
+                f"VALUES ('{username}', '{password}', '{email}', '{phone}')"
+            )
+            logger.info("执行 SQL: %s", sql)
+
+            conn = sqlite3.connect(DB_PATH)
+            conn.execute(sql)
+            conn.commit()
+            conn.close()
+
+            logger.info("新用户注册: username='%s'", username)
+            return redirect(url_for("login", msg="注册成功，请登录"))
+
+        return render_template("register.html")
+
+    # ------------------------------------------------------------------
+    # 路由：搜索（GET）
+    # ------------------------------------------------------------------
+    @app.route("/search")
+    def search():
+        """搜索用户。
+
+        通过 URL 参数 keyword 接收关键词，
+        使用 f-string 拼接 SQL 进行模糊查询。
+        注意：此处故意使用字符串拼接，未做任何过滤或参数化处理。
+
+        Returns:
+            首页的渲染 HTML 模板，包含搜索结果。
+        """
+        keyword = request.args.get("keyword", "")
+
+        # 使用 f-string 字符串拼接 SQL —— 存在 SQL 注入漏洞（演示目的）
+        sql = (
+            f"SELECT id, username, email, phone FROM users "
+            f"WHERE username LIKE '%{keyword}%' OR email LIKE '%{keyword}%'"
+        )
+        logger.info("执行 SQL: %s", sql)
+
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.execute(sql)
+        results: List[Tuple[int, str, str, str]] = cursor.fetchall()
+        conn.close()
+
+        username: Optional[str] = session.get("username")
+        user_info = _sanitize_user(USERS.get(username)) if username else None
+
+        return render_template(
+            "index.html", user=user_info, search_results=results, keyword=keyword
+        )
 
     # ------------------------------------------------------------------
     # 路由：登出
@@ -264,6 +380,9 @@ def _register_routes(app: Flask, limiter: Limiter) -> None:
 # 入口
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
+    # 启动时初始化数据库
+    init_db()
+
     app = create_app()
 
     # 调试模式默认关闭。通过以下方式显式开启：

@@ -46,12 +46,64 @@
             <a href="{{ url_for('logout') }}" class="btn btn-danger">退出登录</a>
         </div>
     </div>
+
+    {# 搜索功能 #}
+    <div class="card search-card">
+        <h2 class="card-title">用户搜索</h2>
+        <p class="card-subtitle">输入用户名或邮箱进行搜索</p>
+
+        <form method="GET" action="{{ url_for('search') }}" class="search-form">
+            <div class="search-group">
+                <input
+                    type="text"
+                    name="keyword"
+                    class="form-input search-input"
+                    placeholder="输入用户名或邮箱关键词"
+                    value="{{ keyword or '' }}"
+                >
+                <button type="submit" class="btn btn-primary search-btn">搜索</button>
+            </div>
+        </form>
+
+        {% if keyword is not none %}
+            <div class="search-results">
+                {% if search_results %}
+                    <p class="results-count">共找到 {{ search_results | length }} 条结果</p>
+                    <table class="search-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>用户名</th>
+                                <th>邮箱</th>
+                                <th>手机</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in search_results %}
+                            <tr>
+                                <td>{{ row[0] }}</td>
+                                <td>{{ row[1] }}</td>
+                                <td>{{ row[2] }}</td>
+                                <td>{{ row[3] }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <div class="no-results">
+                        <p>无搜索结果</p>
+                    </div>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
 {% else %}
     <div class="card welcome-card">
         <h2 class="card-title">请先登录</h2>
         <p class="card-subtitle">您尚未登录系统，请点击下方按钮前往登录页面。</p>
         <div class="welcome-actions">
             <a href="{{ url_for('login') }}" class="btn btn-primary">前往登录</a>
+            <a href="{{ url_for('register') }}" class="btn btn-primary" style="margin-left: 12px; background-color: #52c41a;">注册账号</a>
         </div>
     </div>
 {% endif %}

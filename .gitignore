@@ -29,3 +29,4 @@ instance/
 # Logs
 *.log
 /tmp/
+*.db
