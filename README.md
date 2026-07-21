@@ -13,6 +13,7 @@
 
 **[🔬 漏洞分析报告](VULN_REPORT.md)** ·
 **[💉 SQL注入修复报告](SQL_INJECTION_REPORT.md)** ·
+**[📁 文件上传漏洞报告](FILE_UPLOAD_REPORT.md)** ·
 **[🚀 快速开始](#-快速开始)** ·
 **[📋 修复清单](#-修复的漏洞清单)**
 
@@ -123,6 +124,9 @@ python app.py
 | 13 | **时序攻击** | 🟢 中危 | `check_password_hash()` 常量时间比较 | [CWE-208](https://cwe.mitre.org/data/definitions/208.html) |
 | 14 | **注册 SQL 注入** | 🔴 严重 | 参数化查询替代 f-string 拼接 | [CWE-89](https://cwe.mitre.org/data/definitions/89.html) |
 | 15 | **搜索 SQL 注入** | 🔴 严重 | 参数化查询替代 f-string 拼接 | [CWE-89](https://cwe.mitre.org/data/definitions/89.html) |
+| 16 | **文件上传 RCE** | 🔴 严重 | 扩展名白名单 + UUID 重命名 | [CWE-434](https://cwe.mitre.org/data/definitions/434.html) |
+| 17 | **路径遍历** | 🔴 严重 | UUID 重命名拒绝原始文件名 | [CWE-22](https://cwe.mitre.org/data/definitions/22.html) |
+| 18 | **存储型 XSS** | 🟡 高危 | 仅允许图片格式上传 | [CWE-79](https://cwe.mitre.org/data/definitions/79.html) |
 
 📖 **每个漏洞的详细分析见 [VULN_REPORT.md](VULN_REPORT.md)。**
 
@@ -139,6 +143,8 @@ python app.py
 | GET | `/register` | 显示注册表单 | 否 | 否 |
 | POST | `/register` | 用户注册（SQLite 存储） | 否 | 否 |
 | GET | `/search` | 按用户名或邮箱搜索用户 | 否 | 否 |
+| GET | `/upload` | 显示上传表单 | **是** | 否 |
+| POST | `/upload` | 上传头像文件 | **是** | 否 |
 
 ---
 

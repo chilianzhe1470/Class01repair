@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}上传头像{% endblock %}
+{% block content %}
+<div class="card login-card">
+    <h2 class="card-title">上传头像</h2>
+    <p class="card-subtitle">支持 png、jpg、gif、bmp、webp、svg 格式</p>
+
+    {% if error %}
+        <div class="error-msg" role="alert" aria-live="assertive">
+            <span class="error-icon" aria-hidden="true">⚠️</span>
+            {{ error }}
+        </div>
+    {% endif %}
+
+    {% if uploaded_file %}
+        <div class="success-msg" role="alert">
+            <span class="success-icon" aria-hidden="true">✅</span>
+            上传成功！
+        </div>
+        <div class="upload-preview" style="text-align:center;margin-bottom:20px;">
+            <p>文件预览：</p>
+            <img src="{{ url_for('static', filename='uploads/' + uploaded_file) }}"
+                 style="max-width:300px;max-height:300px;border:1px solid #ddd;border-radius:8px;margin-top:10px;"
+                 onerror="this.style.display='none'"
+                 alt="上传的头像">
+            <p style="margin-top:12px;font-size:14px;">
+                访问链接：
+                <a href="{{ url_for('static', filename='uploads/' + uploaded_file) }}" target="_blank">
+                    /static/uploads/{{ uploaded_file }}
+                </a>
+            </p>
+        </div>
+        <hr style="margin:20px 0;border:none;border-top:1px solid #f0f0f0;">
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('upload') }}" enctype="multipart/form-data" class="login-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="form-group">
+            <label for="file" class="form-label">选择文件</label>
+            <input type="file" id="file" name="file" class="form-input" style="padding:8px;">
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block">上传</button>
+    </form>
+</div>
+{% endblock %}

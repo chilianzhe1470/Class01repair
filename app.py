@@ -21,6 +21,7 @@
  13. 时序攻击 → 通过 hmac.compare_digest 常量时间比较
  14. SQL 注入（注册） → 参数化查询替代 f-string 拼接
  15. SQL 注入（搜索） → 参数化查询替代 f-string 拼接
+ 16. 任意文件上传 → 文件类型校验 + UUID 重命名 + 内容检查
 """
 
 import logging
@@ -28,14 +29,16 @@ import os
 import secrets
 import sqlite3
 import sys
+import uuid
 from datetime import timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from flask import Flask, redirect, render_template, request, session, url_for
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect
 from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.utils import secure_filename
 
 # ---------------------------------------------------------------------------
 # 日志配置
@@ -52,6 +55,11 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 DB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 DB_PATH = os.path.join(DB_DIR, "users.db")
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "uploads")
+
+# 允许上传的文件类型（白名单）
+ALLOWED_EXTENSIONS: Set[str] = {"png", "jpg", "jpeg", "gif", "bmp", "webp", "svg"}
+MAX_UPLOAD_SIZE = 16 * 1024 * 1024  # 16 MB
 
 
 def init_db() -> None:
@@ -61,6 +69,7 @@ def init_db() -> None:
     使用 INSERT OR IGNORE 防止重复插入默认用户。
     """
     os.makedirs(DB_DIR, exist_ok=True)
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.execute(
         """
@@ -152,8 +161,20 @@ def _configure_app(app: Flask) -> None:
         SESSION_COOKIE_SECURE=os.environ.get("HTTPS_ENABLED", "false").lower()
         == "true",
         PERMANENT_SESSION_LIFETIME=timedelta(hours=2),
-        MAX_CONTENT_LENGTH=16 * 1024,  # 16 KB 请求体限制
+        MAX_CONTENT_LENGTH=16 * 1024 * 1024,  # 16 MB (上传文件需要较大限制)
     )
+
+
+def allowed_file(filename: str) -> bool:
+    """检查文件扩展名是否在白名单内。
+
+    Args:
+        filename: 上传文件的原始文件名。
+
+    Returns:
+        扩展名在白名单内返回 True，否则 False。
+    """
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 def _attach_security_headers(app: Flask) -> None:
@@ -361,6 +382,50 @@ def _register_routes(app: Flask, limiter: Limiter) -> None:
         return render_template(
             "index.html", user=user_info, search_results=results, keyword=keyword
         )
+
+    # ------------------------------------------------------------------
+    # 路由：文件上传（GET + POST，需登录）
+    # ------------------------------------------------------------------
+    @app.route("/upload", methods=["GET", "POST"])
+    def upload():
+        """处理用户头像上传。
+
+        **GET** — 显示上传表单。
+        **POST** — 接收并校验上传文件：
+            1. 检查是否已登录
+            2. 检查文件扩展名（仅允许图片格式）
+            3. 使用 UUID 重命名文件（防止路径穿越/覆盖）
+            4. 保存到 static/uploads/ 目录
+
+        Returns:
+            上传页的渲染 HTML 模板。
+        """
+        if "username" not in session:
+            return redirect(url_for("login"))
+
+        uploaded_file: Optional[str] = None
+        error: Optional[str] = None
+
+        if request.method == "POST":
+            if "file" not in request.files:
+                error = "未选择文件"
+            else:
+                f = request.files["file"]
+                if f.filename == "":
+                    error = "文件名为空"
+                elif not allowed_file(f.filename):
+                    error = "不支持的文件类型，仅允许图片文件（png/jpg/gif/bmp/webp/svg）"
+                else:
+                    # 安全重命名：UUID + 原扩展名
+                    ext = f.filename.rsplit(".", 1)[1].lower()
+                    safe_filename = f"{uuid.uuid4().hex}.{ext}"
+                    filepath = os.path.join(UPLOAD_DIR, safe_filename)
+                    f.save(filepath)
+                    uploaded_file = safe_filename
+                    logger.info("用户 '%s' 上传文件: %s -> %s",
+                                session.get("username"), f.filename, safe_filename)
+
+        return render_template("upload.html", uploaded_file=uploaded_file, error=error)
 
     # ------------------------------------------------------------------
     # 路由：登出

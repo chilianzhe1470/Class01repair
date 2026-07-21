@@ -21,6 +21,7 @@
                 <span class="nav-welcome" aria-label="当前用户">
                     欢迎，<span class="nav-username">{{ session.get('username') }}</span>
                 </span>
+                <a href="{{ url_for('upload') }}" class="nav-link" role="button">上传头像</a>
                 <a href="{{ url_for('logout') }}" class="nav-link" role="button">退出</a>
             {% else %}
                 <a href="{{ url_for('login') }}" class="nav-link" role="button">登录</a>

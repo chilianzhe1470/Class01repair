@@ -48,6 +48,9 @@
 | 13 | 时序攻击 | 🟢 中危 | [CWE-208](https://cwe.mitre.org/data/definitions/208.html) | 使用 `==` 逐字符比较字符串 | `check_password_hash()` 常量时间比较 |
 | **14** | **注册 SQL 注入** | 🔴 严重 | [CWE-89](https://cwe.mitre.org/data/definitions/89.html) | f-string 拼接 SQL INSERT 语句 | 参数化查询（`?` 占位符） |
 | **15** | **搜索 SQL 注入** | 🔴 严重 | [CWE-89](https://cwe.mitre.org/data/definitions/89.html) | f-string 拼接 SQL SELECT 语句 | 参数化查询（`?` 占位符） |
+| **16** | **文件上传 RCE** | 🔴 严重 | [CWE-434](https://cwe.mitre.org/data/definitions/434.html) | 无文件类型校验 | 扩展名白名单仅允许图片 |
+| **17** | **路径遍历** | 🔴 严重 | [CWE-22](https://cwe.mitre.org/data/definitions/22.html) | 使用原始文件名 | UUID 重命名 |
+| **18** | **存储型 XSS** | 🟡 高危 | [CWE-79](https://cwe.mitre.org/data/definitions/79.html) | 可上传 HTML/SVG 文件 | 仅允许图片格式 |
 
 ---
 

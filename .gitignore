@@ -30,3 +30,5 @@ instance/
 *.log
 /tmp/
 *.db
+static/uploads/*
+!static/uploads/.gitkeep
