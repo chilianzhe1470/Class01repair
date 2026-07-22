@@ -14,6 +14,7 @@
 **[🔬 漏洞分析报告](VULN_REPORT.md)** ·
 **[💉 SQL注入修复报告](SQL_INJECTION_REPORT.md)** ·
 **[📁 文件上传漏洞报告](FILE_UPLOAD_REPORT.md)** ·
+**[🔐 越权漏洞报告](AUTH_REPORT.md)** ·
 **[🚀 快速开始](#-快速开始)** ·
 **[📋 修复清单](#-修复的漏洞清单)**
 
@@ -127,6 +128,8 @@ python app.py
 | 16 | **文件上传 RCE** | 🔴 严重 | 扩展名白名单 + UUID 重命名 | [CWE-434](https://cwe.mitre.org/data/definitions/434.html) |
 | 17 | **路径遍历** | 🔴 严重 | UUID 重命名拒绝原始文件名 | [CWE-22](https://cwe.mitre.org/data/definitions/22.html) |
 | 18 | **存储型 XSS** | 🟡 高危 | 仅允许图片格式上传 | [CWE-79](https://cwe.mitre.org/data/definitions/79.html) |
+| 19 | **越权访问个人中心** | 🔴 严重 | 从 session 获取用户身份 | [CWE-284](https://cwe.mitre.org/data/definitions/284.html) |
+| 20 | **越权充值** | 🔴 严重 | session身份+金额正负校验 | [CWE-639](https://cwe.mitre.org/data/definitions/639.html) |
 
 📖 **每个漏洞的详细分析见 [VULN_REPORT.md](VULN_REPORT.md)。**
 
@@ -145,6 +148,8 @@ python app.py
 | GET | `/search` | 按用户名或邮箱搜索用户 | 否 | 否 |
 | GET | `/upload` | 显示上传表单 | **是** | 否 |
 | POST | `/upload` | 上传头像文件 | **是** | 否 |
+| GET | `/profile` | 查看个人中心 | **是** | 否 |
+| POST | `/recharge` | 充值 | **是** | 否 |
 
 ---
 
@@ -177,6 +182,7 @@ HTTPS_ENABLED=false
 Classrepair/
 ├── app.py                    # Flask 应用主文件（加固版）
 ├── requirements.txt          # Python 依赖清单
+├── AUTH_REPORT.md            # 越权漏洞检测与修复报告
 ├── VULN_REPORT.md            # 漏洞分析报告（完整版）
 ├── SQL_INJECTION_REPORT.md   # SQL 注入专项检测与修复报告
 ├── SUBMISSION_REPORT.md      # 安全评估报告（可提交版）

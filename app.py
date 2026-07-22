@@ -22,6 +22,8 @@
  14. SQL 注入（注册） → 参数化查询替代 f-string 拼接
  15. SQL 注入（搜索） → 参数化查询替代 f-string 拼接
  16. 任意文件上传 → 文件类型校验 + UUID 重命名 + 内容检查
+ 17. 越权访问个人中心 → 从 session 获取用户，禁止 URL 参数指定他人
+ 18. 越权充值 → 从 session 获取用户，禁止表单指定他人，校验金额正负
 """
 
 import logging
@@ -236,6 +238,10 @@ def _register_routes(app: Flask, limiter: Limiter) -> None:
     # 可安全传递给模板的字段（不包含密码衍生值）
     PUBLIC_FIELDS = frozenset({"username", "role", "email", "phone", "balance"})
 
+    # 用户 ID 映射（admin=1, alice=2）
+    USERNAME_TO_ID: Dict[str, int] = {"admin": 1, "alice": 2}
+    ID_TO_USERNAME: Dict[int, str] = {1: "admin", 2: "alice"}
+
     def _sanitize_user(user: Optional[Dict[str, object]]) -> Optional[Dict[str, object]]:
         """从用户字典中剥离敏感字段，再传递给模板。
 
@@ -426,6 +432,71 @@ def _register_routes(app: Flask, limiter: Limiter) -> None:
                                 session.get("username"), f.filename, safe_filename)
 
         return render_template("upload.html", uploaded_file=uploaded_file, error=error)
+
+    # ------------------------------------------------------------------
+    # 路由：个人中心（需登录，从 session 获取用户）
+    # ------------------------------------------------------------------
+    @app.route("/profile")
+    def profile():
+        """展示当前登录用户的个人中心页面。
+
+        用户身份从 session 获取，拒绝 URL 参数指定其他用户。
+        未登录时重定向到登录页。
+
+        Returns:
+            个人中心的渲染 HTML 模板。
+        """
+        if "username" not in session:
+            return redirect(url_for("login"))
+
+        current_user: str = session["username"]
+        user_data = USERS.get(current_user)
+        if not user_data:
+            return "用户不存在", 404
+
+        user_id = USERNAME_TO_ID.get(current_user, 0)
+        profile_info = _sanitize_user(user_data)
+        profile_info["id"] = user_id
+
+        return render_template("profile.html", profile=profile_info, user_id=user_id)
+
+    # ------------------------------------------------------------------
+    # 路由：充值（需登录，从 session 获取用户，校验金额）
+    # ------------------------------------------------------------------
+    @app.route("/recharge", methods=["POST"])
+    def recharge():
+        """为当前登录用户充值。
+
+        用户身份从 session 获取，拒绝表单参数指定其他用户。
+        校验充值金额必须为正数。
+
+        Returns:
+            充值成功重定向到个人中心，失败返回错误信息。
+        """
+        if "username" not in session:
+            return redirect(url_for("login"))
+
+        current_user: str = session["username"]
+        user_data = USERS.get(current_user)
+        if not user_data:
+            return "用户不存在", 404
+
+        amount_str = request.form.get("amount", "0")
+        try:
+            amount = float(amount_str)
+        except ValueError:
+            return "金额格式错误", 400
+
+        # 校验金额必须为正数
+        if amount <= 0:
+            return "充值金额必须大于零", 400
+
+        user_data["balance"] += amount  # type: ignore[operator]
+        logger.info("用户 '%s' 充值 %.2f 元，余额: %.2f",
+                    current_user, amount, user_data["balance"])
+
+        user_id = USERNAME_TO_ID.get(current_user, 0)
+        return redirect(url_for("profile", user_id=user_id))
 
     # ------------------------------------------------------------------
     # 路由：登出

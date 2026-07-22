@@ -51,6 +51,8 @@
 | **16** | **文件上传 RCE** | 🔴 严重 | [CWE-434](https://cwe.mitre.org/data/definitions/434.html) | 无文件类型校验 | 扩展名白名单仅允许图片 |
 | **17** | **路径遍历** | 🔴 严重 | [CWE-22](https://cwe.mitre.org/data/definitions/22.html) | 使用原始文件名 | UUID 重命名 |
 | **18** | **存储型 XSS** | 🟡 高危 | [CWE-79](https://cwe.mitre.org/data/definitions/79.html) | 可上传 HTML/SVG 文件 | 仅允许图片格式 |
+| **19** | **越权访问个人中心** | 🔴 严重 | [CWE-284](https://cwe.mitre.org/data/definitions/284.html) | user_id 从 URL 参数获取 | 从 session 获取，强制登录 |
+| **20** | **越权充值** | 🔴 严重 | [CWE-639](https://cwe.mitre.org/data/definitions/639.html) | user_id 从表单获取，无金额校验 | 从 session 获取，金额>0校验 |
 
 ---
 
