@@ -24,6 +24,7 @@
  16. 任意文件上传 → 文件类型校验 + UUID 重命名 + 内容检查
  17. 越权访问个人中心 → 从 session 获取用户，禁止 URL 参数指定他人
  18. 越权充值 → 从 session 获取用户，禁止表单指定他人，校验金额正负
+ 19. 文件包含/路径遍历 → 白名单校验 + 路径规范化检查
 """
 
 import logging
@@ -270,7 +271,8 @@ def _register_routes(app: Flask, limiter: Limiter) -> None:
         username: Optional[str] = session.get("username")
         user_info = _sanitize_user(USERS.get(username)) if username else None
         return render_template(
-            "index.html", user=user_info, search_results=None, keyword=None
+            "index.html", user=user_info, search_results=None, keyword=None,
+            page_content=None
         )
 
     # ------------------------------------------------------------------
@@ -386,7 +388,8 @@ def _register_routes(app: Flask, limiter: Limiter) -> None:
         user_info = _sanitize_user(USERS.get(username)) if username else None
 
         return render_template(
-            "index.html", user=user_info, search_results=results, keyword=keyword
+            "index.html", user=user_info, search_results=results, keyword=keyword,
+            page_content=None
         )
 
     # ------------------------------------------------------------------
@@ -497,6 +500,45 @@ def _register_routes(app: Flask, limiter: Limiter) -> None:
 
         user_id = USERNAME_TO_ID.get(current_user, 0)
         return redirect(url_for("profile", user_id=user_id))
+
+    # ------------------------------------------------------------------
+    # 路由：动态页面加载（白名单 + 路径校验）
+    # ------------------------------------------------------------------
+    @app.route("/page")
+    def page():
+        """加载动态页面内容。
+
+        采取以下安全措施：
+        1. 白名单校验 — 仅允许预定义的页面名称
+        2. 正则校验 — name 仅允许字母、数字、下划线、连字符
+        3. 仅查找 .html 后缀的文件
+        4. 通过 os.path.normpath 和前缀检查防止路径穿越
+
+        Returns:
+            首页的渲染 HTML 模板，包含 page_content 变量。
+        """
+        name: str = request.args.get("name", "")
+
+        # 安全措施 1 & 2：白名单 + 正则校验
+        ALLOWED_PAGES = {"help", "about", "contact", "faq"}
+        if name not in ALLOWED_PAGES:
+            logger.warning("非法页面请求: '%s'", name)
+            return render_template("index.html", page_content="页面不存在或无权访问")
+
+        # 安全措施 3：规范化路径并检查是否在 pages/ 目录内
+        base_dir: str = os.path.abspath("pages")
+        filepath: str = os.path.normpath(os.path.join(base_dir, f"{name}.html"))
+
+        if not filepath.startswith(base_dir):
+            logger.warning("路径越界尝试: '%s'", name)
+            return render_template("index.html", page_content="页面不存在或无权访问")
+
+        if os.path.exists(filepath):
+            with open(filepath, "r", encoding="utf-8") as f:
+                content: str = f.read()
+            return render_template("index.html", page_content=content)
+
+        return render_template("index.html", page_content="页面不存在")
 
     # ------------------------------------------------------------------
     # 路由：登出

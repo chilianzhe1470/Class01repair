@@ -1,6 +1,18 @@
 {% extends "base.html" %}
-{% block title %}{% if user %}个人中心{% else %}首页{% endif %}{% endblock %}
+{% block title %}{% if page_content is defined and page_content %}帮助中心{% elif user %}个人中心{% else %}首页{% endif %}{% endblock %}
 {% block content %}
+
+{# 动态页面内容（来自 /page 路由） #}
+{% if page_content is defined and page_content %}
+    <div class="card">
+        <h2 class="card-title">帮助中心</h2>
+        <div class="page-content" style="line-height:1.8;">
+            {{ page_content | safe }}
+        </div>
+        <p style="margin-top:16px;"><a href="{{ url_for('index') }}">← 返回首页</a></p>
+    </div>
+{% else %}
+
 {% if user %}
     <div class="card profile-card">
         <div class="profile-header">
@@ -108,5 +120,6 @@
             <a href="{{ url_for('register') }}" class="btn btn-primary" style="margin-left: 12px; background-color: #52c41a;">注册账号</a>
         </div>
     </div>
+{% endif %}
 {% endif %}
 {% endblock %}
