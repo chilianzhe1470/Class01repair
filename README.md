@@ -7,8 +7,6 @@
 [![License](https://img.shields.io/badge/许可证-MIT-green.svg)](LICENSE)
 [![Security](https://img.shields.io/badge/安全-已加固-brightgreen)](#-修复的漏洞清单)
 
-**一个用于网络安全教学的 Flask 应用 —— 从漏洞版到加固版的对比实践。**
-
 将原始漏洞版 [Class01](http://192.168.145.130:5000/) 与加固版进行对比，理解真实的 Web 安全漏洞及其修复方法。
 
 **[🔬 漏洞分析报告](VULN_REPORT.md)** ·
@@ -59,7 +57,6 @@
 
 - Python **3.8+**
 - `pip`（Python 包管理器）
-- *（可选）* `virtualenv` 创建隔离环境
 
 ### 安装步骤
 
