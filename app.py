@@ -25,6 +25,7 @@
  17. 越权访问个人中心 → 从 session 获取用户，禁止 URL 参数指定他人
  18. 越权充值 → 从 session 获取用户，禁止表单指定他人，校验金额正负
  19. 文件包含/路径遍历 → 白名单校验 + 路径规范化检查
+ 20. CSRF 修改密码 → CSRF Token + 原密码校验 + session身份验证
 """
 
 import logging
@@ -539,6 +540,51 @@ def _register_routes(app: Flask, limiter: Limiter) -> None:
             return render_template("index.html", page_content=content)
 
         return render_template("index.html", page_content="页面不存在")
+
+    # ------------------------------------------------------------------
+    # 路由：修改密码（需 CSRF Token + 原密码 + session 校验）
+    # ------------------------------------------------------------------
+    @app.route("/change-password", methods=["POST"])
+    def change_password():
+        """修改当前登录用户的密码。
+
+        安全措施：
+        1. CSRF Token 验证（Flask-WTF）
+        2. 从 session 获取用户名，拒绝表单参数
+        3. 需要原密码验证（check_password_hash）
+        4. 新密码使用 pbkdf2:sha256 哈希存储
+
+        Returns:
+            修改成功重定向到个人中心，失败返回错误信息。
+        """
+        if "username" not in session:
+            return redirect(url_for("login"))
+
+        current_user: str = session["username"]
+        user_data = USERS.get(current_user)
+        if not user_data:
+            return "用户不存在", 404
+
+        old_password: str = request.form.get("old_password", "")
+        new_password: str = request.form.get("new_password", "")
+
+        if not old_password or not new_password:
+            return "原密码和新密码不能为空", 400
+
+        if len(new_password) < 6:
+            return "新密码长度不能少于6位", 400
+
+        # 验证原密码
+        if not check_password_hash(user_data["password_hash"], old_password):  # type: ignore[arg-type]
+            logger.warning("用户 '%s' 修改密码失败：原密码错误", current_user)
+            return "原密码错误", 403
+
+        # 使用哈希存储新密码
+        user_data["password_hash"] = generate_password_hash(new_password)  # type: ignore[assignment]
+        logger.info("用户 '%s' 密码修改成功", current_user)
+
+        user_id = USERNAME_TO_ID.get(current_user, 0)
+        return redirect(url_for("profile", user_id=user_id))
 
     # ------------------------------------------------------------------
     # 路由：登出

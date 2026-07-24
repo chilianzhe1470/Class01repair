@@ -52,5 +52,22 @@
         </div>
         <button type="submit" class="btn btn-primary btn-block">确认充值</button>
     </form>
+
+    <hr style="margin:20px 0;border:none;border-top:1px solid #f0f0f0;">
+
+    <h3 class="card-title">修改密码</h3>
+    <form method="POST" action="{{ url_for('change_password') }}" class="login-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {# 注意：没有 username 隐藏字段，身份从 session 获取 #}
+        <div class="form-group">
+            <label for="old_password" class="form-label">原密码</label>
+            <input type="password" id="old_password" name="old_password" class="form-input" placeholder="请输入原密码" required>
+        </div>
+        <div class="form-group">
+            <label for="new_password" class="form-label">新密码</label>
+            <input type="password" id="new_password" name="new_password" class="form-input" placeholder="请输入新密码（至少6位）" minlength="6" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">修改密码</button>
+    </form>
 </div>
 {% endblock %}

@@ -16,6 +16,7 @@
 **[📁 文件上传漏洞报告](FILE_UPLOAD_REPORT.md)** ·
 **[🔐 越权漏洞报告](AUTH_REPORT.md)** ·
 **[📂 路径遍历漏洞报告](PATH_TRAVERSAL_REPORT.md)** ·
+**[🛡️ CSRF/XSS漏洞报告](CSRF_XSS_REPORT.md)** ·
 **[🚀 快速开始](#-快速开始)** ·
 **[📋 修复清单](#-修复的漏洞清单)**
 
@@ -133,6 +134,7 @@ python app.py
 | 20 | **越权充值** | 🔴 严重 | session身份+金额正负校验 | [CWE-639](https://cwe.mitre.org/data/definitions/639.html) |
 | 21 | **路径遍历读取源码** | 🔴 严重 | 白名单+路径规范化检查 | [CWE-22](https://cwe.mitre.org/data/definitions/22.html) |
 | 22 | **路径遍历读取系统文件** | 🔴 严重 | 前缀检查拒绝越界路径 | [CWE-22](https://cwe.mitre.org/data/definitions/22.html) |
+| 23 | **CSRF 修改密码** | 🔴 严重 | CSRF Token + 原密码验证 | [CWE-352](https://cwe.mitre.org/data/definitions/352.html) |
 
 📖 **每个漏洞的详细分析见 [VULN_REPORT.md](VULN_REPORT.md)。**
 
@@ -154,6 +156,7 @@ python app.py
 | GET | `/profile` | 查看个人中心 | **是** | 否 |
 | POST | `/recharge` | 充值 | **是** | 否 |
 | GET | `/page` | 动态页面（帮助中心） | 否 | 否 |
+| POST | `/change-password` | 修改密码 | **是** | 否 |
 
 ---
 
@@ -186,6 +189,7 @@ HTTPS_ENABLED=false
 Classrepair/
 ├── app.py                    # Flask 应用主文件（加固版）
 ├── requirements.txt          # Python 依赖清单
+├── CSRF_XSS_REPORT.md        # CSRF与XSS漏洞检测与修复报告
 ├── PATH_TRAVERSAL_REPORT.md  # 路径遍历漏洞检测与修复报告
 ├── AUTH_REPORT.md            # 越权漏洞检测与修复报告
 ├── VULN_REPORT.md            # 漏洞分析报告（完整版）
